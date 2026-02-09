@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - Online P2P (Host Autoritativo + Cenas + Perfil/Biblioteca)</title>
+  <title>Tabletop Luxury - P2P (Mapa “palpável” + Camadas + Biblioteca de Assets)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -11,475 +11,245 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 
   <style>
-    :root {
-      --gold: #c5a059;
-      --dark-bg: #0f0f0f;
-      --panel-bg: rgba(20, 20, 20, 0.9);
-      --glass: rgba(255, 255, 255, 0.03);
-      --status-online: #4ade80;
-      --status-offline: #ef4444;
+    :root{
+      --gold:#c5a059;
+      --dark-bg:#0f0f0f;
+      --panel-bg:rgba(20,20,20,.9);
+      --glass:rgba(255,255,255,.03);
+      --status-online:#4ade80;
+      --status-offline:#ef4444;
     }
+    body{margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Inter',sans-serif;color:#e0e0e0;}
 
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-color: var(--dark-bg);
-      font-family: 'Inter', sans-serif;
-      color: #e0e0e0;
-    }
+    #viewport{width:100vw;height:100vh;overflow:hidden;position:relative;background:radial-gradient(circle,#1a1a1a 0%,#0a0a0a 100%);z-index:1;}
+    #canvas-container{width:10000px;height:10000px;position:absolute;top:0;left:0;transform-origin:0 0;cursor:grab;z-index:2;}
 
-    #viewport {
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-      background: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%);
-      z-index: 1;
-    }
-
-    #canvas-container {
-      width: 10000px;
-      height: 10000px;
-      position: absolute;
-      top: 0;
-      left: 0;
+    /* MAPA = camada 0 */
+    #map-container{
+      position:absolute;top:0;left:0;
+      z-index:5;
+      pointer-events:auto; /* agora é “palpável” */
+      transform: translate(0px,0px);
       transform-origin: 0 0;
+    }
+    #map-container.locked{pointer-events:none;}
+    #map-container img{
+      display:block;max-width:none;
+      user-select:none;
+      -webkit-user-drag:none;
       cursor: grab;
-      z-index: 2;
+      filter: drop-shadow(0 0 25px rgba(0,0,0,.45));
     }
+    #map-container.dragging img{cursor: grabbing;}
 
-    .map-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 5;
-      pointer-events: none;
-      transition: opacity 0.3s;
-    }
-    .map-layer.locked { pointer-events: none; }
-    .map-layer img { display: block; max-width: none; }
-
-    .grid-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
+    .grid-layer{
+      position:absolute;top:0;left:0;width:100%;height:100%;
+      pointer-events:none;
       background-image:
-        linear-gradient(to right, rgba(197, 160, 89, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(197, 160, 89, 0.05) 1px, transparent 1px);
-      background-size: 50px 50px;
-      z-index: 6;
+        linear-gradient(to right, rgba(197,160,89,.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(197,160,89,.05) 1px, transparent 1px);
+      background-size:50px 50px;
+      z-index:6;
     }
 
-    .token {
-      position: absolute;
-      cursor: move;
-      user-select: none;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: filter 0.2s ease, outline 0.2s ease;
-      background: transparent;
-      overflow: visible;
+    /* TOKENS = camadas >= 1 */
+    .token{
+      position:absolute;
+      cursor:move;
+      user-select:none;
+      display:flex;align-items:center;justify-content:center;
+      background:transparent;
+      overflow:visible;
+      transition:filter .2s ease, outline .2s ease;
+    }
+    .token.locked{cursor:default!important;pointer-events:none;}
+    .token.locked .token-controls,.token.locked .resize-handle{display:none!important;}
+
+    .token-blocker{position:absolute;top:0;left:0;width:100%;height:100%;z-index:50;background:rgba(255,255,255,.001);}
+    .token-content-wrapper{width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+
+    .token iframe,.token img{
+      width:100%;height:100%;border:none;background:transparent;pointer-events:none;
+      object-fit:contain; /* evita “cortar” */
+      transition:transform .2s ease-out;
     }
 
-    .token.locked {
-      cursor: default !important;
-      pointer-events: none;
+    .token.selected:not(.locked){
+      filter:drop-shadow(0 0 15px var(--gold));
+      outline:2px dashed rgba(197,160,89,.6);
+      outline-offset:4px;
     }
 
-    .token.locked .token-controls,
-    .token.locked .resize-handle { display: none !important; }
+    .resize-handle{
+      position:absolute;width:16px;height:16px;background:var(--gold);
+      border:2px solid #fff;border-radius:4px;display:none;z-index:110;
+      cursor:nwse-resize;bottom:-8px;right:-8px;
+    }
+    .token.selected:not(.locked) .resize-handle{display:block;}
 
-    .token-blocker {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 50;
-      background: rgba(255, 255, 255, 0.001);
+    .token-controls{
+      position:absolute;top:-65px;left:50%;transform:translateX(-50%);
+      display:none;background:var(--panel-bg);backdrop-filter:blur(12px);
+      border:1px solid rgba(197,160,89,.4);border-radius:40px;
+      padding:8px 16px;gap:12px;z-index:200;
+      box-shadow:0 4px 20px rgba(0,0,0,.5);
+      white-space:nowrap;
+    }
+    .token.selected:not(.locked) .token-controls{display:flex;align-items:center;}
+    .token-btn{
+      color:#fff;font-size:16px;cursor:pointer;opacity:.85;transition:all .2s;
+      display:flex;align-items:center;gap:5px;
+    }
+    .token-btn:hover{opacity:1;color:var(--gold);transform:scale(1.08);}
+
+    .hud-element{transition:opacity .4s ease, transform .4s ease;}
+    .hud-hidden .hud-element{opacity:0!important;pointer-events:none!important;transform:translateY(10px);}
+
+    .sidebar{
+      width:300px;background:var(--panel-bg);backdrop-filter:blur(15px);
+      height:100vh;position:fixed;left:0;top:0;z-index:1000;
+      border-right:1px solid rgba(197,160,89,.2);
+      transform:translateX(-100%);
+      transition:transform .4s cubic-bezier(.16,1,.3,1);
+    }
+    .sidebar.open{transform:translateX(0);}
+    .toggle-sidebar-btn{
+      position:absolute;right:-35px;top:20px;background:var(--panel-bg);
+      border:1px solid rgba(197,160,89,.2);border-left:none;
+      padding:10px 8px;border-radius:0 8px 8px 0;cursor:pointer;color:var(--gold);
     }
 
-    .token-content-wrapper {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
+    .controls-top{
+      position:fixed;top:20px;left:50%;transform:translateX(-50%);
+      display:flex;gap:10px;z-index:1000;background:var(--panel-bg);
+      padding:8px;border-radius:40px;border:1px solid rgba(197,160,89,.2);
+      backdrop-filter:blur(10px);box-shadow:0 5px 25px rgba(0,0,0,.4);
     }
 
-    /* Portrait / manuseio: por padrão não corta */
-    .token iframe, .token img {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: transparent;
-      pointer-events: none;
-      object-fit: contain;
-      transition: transform 0.2s ease-out;
+    .btn-luxury{
+      padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;
+      text-transform:uppercase;letter-spacing:1px;transition:all .3s;
+      border:1px solid transparent;color:#ccc;background:transparent;
+    }
+    .btn-luxury:hover,.btn-luxury.active{
+      color:var(--gold);background:var(--glass);border-color:rgba(197,160,89,.4);
     }
 
-    .token.selected:not(.locked) {
-      filter: drop-shadow(0 0 15px var(--gold));
-      z-index: 101;
-      outline: 2px dashed rgba(197, 160, 89, 0.6);
-      outline-offset: 4px;
+    .dice-log{
+      position:fixed;bottom:25px;right:25px;width:240px;max-height:200px;
+      background:var(--panel-bg);border-radius:12px;border:1px solid rgba(197,160,89,.15);
+      padding:15px;overflow-y:auto;font-size:13px;z-index:1000;
+      box-shadow:0 4px 15px rgba(0,0,0,.3);
     }
 
-    .resize-handle {
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      background: var(--gold);
-      border: 2px solid white;
-      border-radius: 4px;
-      display: none;
-      z-index: 110;
-      cursor: nwse-resize;
-      bottom: -8px;
-      right: -8px;
+    .btn-toggle-hud{
+      position:fixed;bottom:25px;left:25px;z-index:2000;background:var(--panel-bg);
+      width:45px;height:45px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      border:1px solid rgba(197,160,89,.3);cursor:pointer;color:var(--gold);
+      box-shadow:0 4px 10px rgba(0,0,0,.4);
     }
 
-    .token.selected:not(.locked) .resize-handle { display: block; }
-
-    .token-controls {
-      position: absolute;
-      top: -65px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: none;
-      background: var(--panel-bg);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(197, 160, 89, 0.4);
-      border-radius: 40px;
-      padding: 8px 16px;
-      gap: 12px;
-      z-index: 200;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      white-space: nowrap;
+    .url-field{
+      background:rgba(0,0,0,.3);border:1px solid rgba(197,160,89,.2);color:#fff;
+      width:100%;font-size:12px;padding:8px;margin-bottom:10px;outline:none;border-radius:6px;
     }
+    .url-field:focus{border-color:var(--gold);background:rgba(0,0,0,.5);}
 
-    .token.selected:not(.locked) .token-controls { display: flex; align-items: center; }
+    h2,h3{font-family:'Cinzel',serif;letter-spacing:1px;color:var(--gold);}
 
-    .token-btn {
-      color: #fff;
-      font-size: 16px;
-      cursor: pointer;
-      opacity: 0.8;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+    .network-status{
+      position:fixed;top:80px;right:20px;display:flex;align-items:center;gap:10px;
+      background:var(--panel-bg);padding:8px 16px;border-radius:20px;
+      border:1px solid rgba(197,160,89,.2);font-size:11px;z-index:1000;
+      backdrop-filter:blur(10px);
+      opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .3s;
+    }
+    .network-status.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--status-offline);box-shadow:0 0 5px currentColor;}
+    .status-dot.online{background:var(--status-online);}
+
+    .lock-manager{
+      position:fixed;top:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:10px;
     }
 
-    .token-btn:hover {
-      opacity: 1;
-      color: var(--gold);
-      transform: scale(1.08);
+    #notification{
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);
+      background:rgba(0,0,0,.9);border:1px solid var(--gold);
+      padding:20px 40px;border-radius:10px;z-index:9999;color:var(--gold);
+      font-family:'Cinzel',serif;opacity:0;pointer-events:none;transition:all .3s;
+    }
+    #notification.active{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+    #role-badge{
+      position:fixed;top:140px;right:20px;z-index:1100;background:var(--panel-bg);
+      border:1px solid rgba(197,160,89,.2);border-radius:999px;padding:6px 12px;
+      font-size:11px;backdrop-filter:blur(10px);opacity:.95;
+    }
+    #role-badge b{color:var(--gold);}
+
+    /* BIBLIOTECA (Assets/Players/Mapas) */
+    .library-panel{
+      position:fixed;top:170px;right:20px;z-index:1200;width:380px;max-height:560px;
+      background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
+      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden;display:none;
+    }
+    .library-panel.show{display:block;}
+
+    .library-tabs{display:flex;gap:8px;margin-bottom:10px;}
+    .library-tab{
+      flex:1;padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.25);
+      background:rgba(255,255,255,.03);font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+      cursor:pointer;color:#ccc;text-align:center;
+    }
+    .library-tab.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+
+    .library-search{
+      width:100%;margin-bottom:10px;padding:8px 10px;border-radius:10px;
+      border:1px solid rgba(197,160,89,.2);background:rgba(0,0,0,.35);color:#fff;font-size:12px;outline:none;
     }
 
-    .hud-element { transition: opacity 0.4s ease, transform 0.4s ease; }
-    .hud-hidden .hud-element { opacity: 0 !important; pointer-events: none !important; transform: translateY(10px); }
-
-    .sidebar {
-      width: 280px;
-      background: var(--panel-bg);
-      backdrop-filter: blur(15px);
-      height: 100vh;
-      position: fixed;
-      left: 0;
-      top: 0;
-      z-index: 1000;
-      border-right: 1px solid rgba(197, 160, 89, 0.2);
-      transform: translateX(-100%);
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .sidebar.open { transform: translateX(0); }
-
-    .toggle-sidebar-btn {
-      position: absolute;
-      right: -35px;
-      top: 20px;
-      background: var(--panel-bg);
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      border-left: none;
-      padding: 10px 8px;
-      border-radius: 0 8px 8px 0;
-      cursor: pointer;
-      color: var(--gold);
+    .library-grid{
+      overflow:auto;max-height:390px;padding-right:6px;
+      display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
     }
 
-    .controls-top {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-      z-index: 1000;
-      background: var(--panel-bg);
-      padding: 8px;
-      border-radius: 40px;
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 5px 25px rgba(0,0,0,0.4);
+    .asset-card{
+      border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);
+      border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px;
     }
+    .asset-thumb{
+      width:100%;aspect-ratio:1/1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.06);
+      background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    }
+    .asset-thumb img{width:100%;height:100%;object-fit:cover;}
+    .asset-actions{display:flex;gap:6px;}
+    .asset-actions button{
+      flex:1;padding:6px 8px;border-radius:10px;border:1px solid rgba(197,160,89,.25);
+      background:rgba(255,255,255,.03);color:#ddd;font-size:10px;cursor:pointer;
+    }
+    .asset-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
 
-    .btn-luxury {
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      transition: all 0.3s;
-      border: 1px solid transparent;
-      color: #ccc;
-      background: transparent;
+    /* GERENCIADOR DE CAMADAS */
+    .layers-panel{
+      position:fixed;top:230px;left:50%;transform:translateX(-50%);
+      z-index:1200;min-width:360px;max-width:520px;
+      background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
+      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);
+      display:none;
     }
-
-    .btn-luxury:hover, .btn-luxury.active {
-      color: var(--gold);
-      background: var(--glass);
-      border-color: rgba(197, 160, 89, 0.4);
+    .layers-panel.show{display:block;}
+    .layer-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.12);margin-bottom:8px;}
+    .layer-row b{color:var(--gold);}
+    .layer-actions{display:flex;gap:8px;align-items:center;}
+    .pill{
+      font-size:10px;padding:5px 10px;border-radius:999px;border:1px solid rgba(197,160,89,.25);cursor:pointer;
+      background:rgba(255,255,255,.03);color:#ddd;
     }
-
-    .dice-log {
-      position: fixed;
-      bottom: 25px;
-      right: 25px;
-      width: 240px;
-      max-height: 200px;
-      background: var(--panel-bg);
-      border-radius: 12px;
-      border: 1px solid rgba(197, 160, 89, 0.15);
-      padding: 15px;
-      overflow-y: auto;
-      font-size: 13px;
-      z-index: 1000;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-
-    .btn-toggle-hud {
-      position: fixed;
-      bottom: 25px;
-      left: 25px;
-      z-index: 2000;
-      background: var(--panel-bg);
-      width: 45px;
-      height: 45px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(197, 160, 89, 0.3);
-      cursor: pointer;
-      color: var(--gold);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-    }
-
-    .url-field {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      color: white;
-      width: 100%;
-      font-size: 12px;
-      padding: 8px;
-      margin-bottom: 10px;
-      outline: none;
-      border-radius: 6px;
-    }
-
-    .url-field:focus { border-color: var(--gold); background: rgba(0,0,0,0.5); }
-
-    h2, h3 { font-family: 'Cinzel', serif; letter-spacing: 1px; color: var(--gold); }
-
-    .network-status {
-      position: fixed;
-      top: 80px;
-      right: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: var(--panel-bg);
-      padding: 8px 16px;
-      border-radius: 20px;
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      font-size: 11px;
-      z-index: 1000;
-      backdrop-filter: blur(10px);
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-10px);
-      transition: all 0.3s;
-    }
-    .network-status.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
-
-    .status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background-color: var(--status-offline);
-      box-shadow: 0 0 5px currentColor;
-    }
-    .status-dot.online { background-color: var(--status-online); }
-
-    .lock-manager {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    #notification {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0.9);
-      background: rgba(0,0,0,0.9);
-      border: 1px solid var(--gold);
-      padding: 20px 40px;
-      border-radius: 10px;
-      z-index: 9999;
-      color: var(--gold);
-      font-family: 'Cinzel', serif;
-      opacity: 0;
-      pointer-events: none;
-      transition: all 0.3s;
-    }
-    #notification.active { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-
-    #role-badge {
-      position: fixed;
-      top: 140px;
-      right: 20px;
-      z-index: 1100;
-      background: var(--panel-bg);
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 11px;
-      backdrop-filter: blur(10px);
-      opacity: 0.95;
-    }
-    #role-badge b { color: var(--gold); }
-
-    /* --- Biblioteca / Perfil --- */
-    .library-panel {
-      position: fixed;
-      top: 170px;
-      right: 20px;
-      z-index: 1200;
-      width: 360px;
-      max-height: 520px;
-      background: var(--panel-bg);
-      border: 1px solid rgba(197, 160, 89, 0.2);
-      border-radius: 16px;
-      padding: 12px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-      overflow: hidden;
-      display: none;
-    }
-    .library-panel.show { display: block; }
-
-    .library-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-    .library-tab {
-      flex: 1;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(197,160,89,.25);
-      background: rgba(255,255,255,.03);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .6px;
-      cursor: pointer;
-      color: #ccc;
-      text-align: center;
-    }
-    .library-tab.active {
-      color: var(--gold);
-      border-color: rgba(197,160,89,.55);
-      background: rgba(255,255,255,.05);
-    }
-
-    .library-search {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(197,160,89,.2);
-      background: rgba(0,0,0,.35);
-      color: #fff;
-      font-size: 12px;
-      outline: none;
-    }
-
-    .library-grid {
-      overflow: auto;
-      max-height: 360px;
-      padding-right: 6px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .asset-card {
-      border: 1px solid rgba(197,160,89,.18);
-      background: rgba(255,255,255,.03);
-      border-radius: 14px;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .asset-thumb {
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,.06);
-      background: rgba(0,0,0,.35);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .asset-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .asset-actions {
-      display: flex;
-      gap: 6px;
-    }
-    .asset-actions button {
-      flex: 1;
-      padding: 6px 8px;
-      border-radius: 10px;
-      border: 1px solid rgba(197,160,89,.25);
-      background: rgba(255,255,255,.03);
-      color: #ddd;
-      font-size: 10px;
-      cursor: pointer;
-    }
-    .asset-actions button:hover {
-      color: var(--gold);
-      border-color: rgba(197,160,89,.55);
-      background: rgba(255,255,255,.05);
-    }
+    .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
   </style>
 </head>
 
@@ -497,6 +267,7 @@
       <button class="btn-luxury" id="btn-lock-all" onclick="unlockEverything()">🔓 Destrancar</button>
       <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
       <button class="btn-luxury" id="btn-library" onclick="toggleLibrary()">📦 Biblioteca</button>
+      <button class="btn-luxury" id="btn-layers" onclick="toggleLayersPanel()">🧱 Camadas</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -511,19 +282,17 @@
       <button class="btn-luxury py-0 px-2 text-[10px]" onclick="copyInviteLink()" id="btn-invite">🔗 Copiar Convite</button>
     </div>
 
-    <!-- Painel de Cenas (HOST) -->
+    <!-- Painel de Cenas -->
     <div class="network-status" id="scene-panel" style="top: 120px;">
       <span style="color: var(--gold); font-weight:700;">Cenas</span>
       <div class="h-4 w-px bg-white/20 mx-2"></div>
 
       <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="embed-remote" checked>
-        Embutir URLs
+        <input type="checkbox" id="embed-remote" checked> Embutir URLs
       </label>
 
       <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="compress-images" checked>
-        Comprimir
+        <input type="checkbox" id="compress-images" checked> Comprimir
       </label>
 
       <select id="max-dim" class="url-field" style="margin:0; padding:6px; width:95px;">
@@ -548,7 +317,7 @@
       </label>
     </div>
 
-    <!-- Painel Biblioteca / Perfil (HOST) -->
+    <!-- Biblioteca / Perfil -->
     <div class="library-panel" id="library-panel">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
         <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Biblioteca</div>
@@ -563,10 +332,11 @@
 
       <div class="library-tabs">
         <div class="library-tab active" id="tab-maps" onclick="setLibraryTab('maps')">Mapas</div>
-        <div class="library-tab" id="tab-tokens" onclick="setLibraryTab('tokens')">Tokens</div>
+        <div class="library-tab" id="tab-players" onclick="setLibraryTab('players')">Players</div>
+        <div class="library-tab" id="tab-assets" onclick="setLibraryTab('assets')">Assets</div>
       </div>
 
-      <input class="library-search" id="library-search" placeholder="Buscar..." oninput="renderLibrary()" />
+      <input class="library-search" id="library-search" placeholder="Buscar..." oninput="renderLibrary()">
       <div class="library-grid" id="library-grid"></div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; opacity:.8;">
@@ -575,13 +345,26 @@
       </div>
     </div>
 
+    <!-- Camadas -->
+    <div class="layers-panel" id="layers-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Camadas (Layer 0 = Mapa)</div>
+        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="rebuildLayersPanel()">Atualizar</button>
+      </div>
+      <div id="layers-list"></div>
+      <div style="font-size:10px;opacity:.75; margin-top:10px;">
+        Dica: tokens têm “layer” e “kind” (player/asset). Player só move o que está destravado e em camada visível.
+      </div>
+    </div>
+
     <div class="sidebar hud-element" id="sidebar">
       <div class="toggle-sidebar-btn" onclick="toggleSidebar()">☰</div>
       <div class="p-6 overflow-y-auto h-full">
-        <h2 class="text-xl font-bold mb-8 border-b border-gold/30 pb-3">Atelier P2P</h2>
+        <h2 class="text-xl font-bold mb-6 border-b border-gold/30 pb-3">Atelier P2P</h2>
 
-        <div class="mb-10" id="host-only-map">
-          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Ambiente</h3>
+        <!-- MAPA (Host) -->
+        <div class="mb-8" id="host-only-map">
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Mapa (Layer 0)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="map-file" accept="image/*" class="hidden" onchange="importAsset(event, 'map')">
             <label for="map-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
@@ -589,20 +372,35 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Dica: imagens locais (upload) viram dataURL e podem ser salvas no perfil/cena.
+            Agora o mapa é arrastável com “inércia” (palpável). Trave para evitar mover.
           </p>
         </div>
 
-        <div class="mb-10" id="host-only-tokens">
-          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Peças</h3>
+        <!-- PLAYERS (Host) -->
+        <div class="mb-8" id="host-only-players">
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Players (tokens)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
-            <input type="file" id="token-file" accept="image/*" class="hidden" onchange="importAsset(event, 'pc')">
-            <label for="token-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
-            <input type="text" id="token-url" class="url-field" placeholder="URL Imagem...">
-            <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('token-url', 'pc')">Adicionar Peça</button>
+            <input type="file" id="player-file" accept="image/*" class="hidden" onchange="importAsset(event, 'player')">
+            <label for="player-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
+            <input type="text" id="player-url" class="url-field" placeholder="URL Imagem...">
+            <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('player-url', 'player')">Adicionar Player</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Players só movem tokens destravados. Host tem autoridade.
+            Players entram por padrão em layer 3.
+          </p>
+        </div>
+
+        <!-- ASSETS (Host) -->
+        <div class="mb-8" id="host-only-assets">
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Assets (tudo que não é player nem mapa)</h3>
+          <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
+            <input type="file" id="asset-file" accept="image/*" class="hidden" onchange="importAsset(event, 'asset')">
+            <label for="asset-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
+            <input type="text" id="asset-url" class="url-field" placeholder="URL Imagem...">
+            <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('asset-url', 'asset')">Adicionar Asset</button>
+          </div>
+          <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
+            Assets entram por padrão em layer 2.
           </p>
         </div>
 
@@ -633,35 +431,44 @@
 
   <script>
     /********************************************************************
-     * MODELO: HOST AUTORITATIVO
-     * - Player envia REQUEST (kind="REQ")
-     * - Host valida, aplica e BROADCAST (kind="ACT")
-     * - Clients aplicam apenas ACT
-     * - Host manda SYNC ao conectar (kind="SYNC")
+     * ✅ MELHORIAS PEDIDAS
+     * - MAPA palpável: arrasta + inércia (“física”) + sync em rede + salva/recupera posição
+     * - SISTEMA DE CAMADAS: mapa sempre layer 0; tokens têm layer >= 1; visibilidade/lock por layer
+     * - BIBLIOTECA/ASSETS: separa Mapas / Players / Assets (tudo que não é player nem mapa)
      ********************************************************************/
 
-    // --- UTILITÁRIOS ---
+    // ===== UTIL =====
     const generateUUID = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
-    // --- ELEMENTOS ---
+    function showNotification(msg){
+      const n=document.getElementById('notification');
+      n.innerText=msg;
+      n.classList.add('active');
+      setTimeout(()=>n.classList.remove('active'),2000);
+    }
+
+    // ===== ELEMENTOS =====
     const canvas = document.getElementById('canvas-container');
     const viewport = document.getElementById('viewport');
     const mapContainer = document.getElementById('map-container');
+    const gridLayer = document.getElementById('grid-layer');
     const sidebar = document.getElementById('sidebar');
     const diceLogEntries = document.getElementById('dice-entries');
-    const gridLayer = document.getElementById('grid-layer');
+
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const networkPanel = document.getElementById('network-panel');
     const scenePanel = document.getElementById('scene-panel');
+
     const roleText = document.getElementById('role-text');
     const tinyStatus = document.getElementById('tiny-status');
     const tinyRoom = document.getElementById('tiny-room');
 
-    // Host-only UI
     const hostOnlyMap = document.getElementById('host-only-map');
-    const hostOnlyTokens = document.getElementById('host-only-tokens');
+    const hostOnlyPlayers = document.getElementById('host-only-players');
+    const hostOnlyAssets = document.getElementById('host-only-assets');
     const hostOnlyClear = document.getElementById('host-only-clear');
+
     const btnLockAll = document.getElementById('btn-lock-all');
     const btnLockMap = document.getElementById('btn-lock-map');
     const btnInvite = document.getElementById('btn-invite');
@@ -669,44 +476,44 @@
     const btnD6 = document.getElementById('btn-d6');
     const btnSaveScene = document.getElementById('btn-save-scene');
     const btnLibrary = document.getElementById('btn-library');
+    const btnLayers = document.getElementById('btn-layers');
 
-    // Biblioteca / Perfil
+    // Biblioteca
     const libraryPanel = document.getElementById('library-panel');
     const libraryGrid = document.getElementById('library-grid');
     const librarySearch = document.getElementById('library-search');
     const libraryCount = document.getElementById('library-count');
-    let libraryTab = "maps"; // "maps" | "tokens"
-
+    let libraryTab = "maps";
     const library = {
-      maps: [],   // [{id,name,src}]
-      tokens: []  // [{id,name,src,contentType}]
+      maps: [],
+      players: [],
+      assets: []
     };
 
-    // --- CÂMERA ---
-    let scale = 1;
-    let posX = window.innerWidth / 2 - 5000;
-    let posY = window.innerHeight / 2 - 5000;
-    let isPanning = false;
-    let startPan = { x: 0, y: 0 };
+    // Camadas
+    const layersPanel = document.getElementById('layers-panel');
+    const layersList = document.getElementById('layers-list');
 
-    // --- SELEÇÃO ---
+    // ===== CAMERA =====
+    let scale = 1;
+    let posX = window.innerWidth/2 - 5000;
+    let posY = window.innerHeight/2 - 5000;
+    let isPanning = false;
+    let startPan = {x:0,y:0};
+
+    function updateTransform(){
+      canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    }
+    updateTransform();
+
+    // ===== SELEÇÃO =====
     let selectedToken = null;
 
-    // --- ESTADO (Host mantém) ---
-    const state = {
-      mapSrc: null,
-      mapLocked: false,
-      tokens: {} // id -> tokenProps
-    };
-
-    // --- REDE / PEERJS ---
-    let peer;
-    let connections = [];
-    let hostConnection = null;
+    // ===== REDE =====
+    let peer, connections = [], hostConnection = null;
     let myId = null;
     let isHost = false;
 
-    // ICE servers (STUN)
     const PEER_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -715,554 +522,418 @@
       ]
     };
 
-    // =============== UI ===============
-    function toggleHUD() { document.body.classList.toggle('hud-hidden'); }
-    function toggleSidebar() { sidebar.classList.toggle('open'); }
-    function toggleGrid() { gridLayer.style.display = gridLayer.style.display === 'none' ? 'block' : 'none'; }
-    function toggleNetworkPanel() { networkPanel.classList.toggle('show'); }
+    // ===== SISTEMA DE CAMADAS =====
+    // layer 0 = mapa. tokens >= 1
+    // visibilidade/lock por layer (host define e sincroniza)
+    const layerState = {
+      visible: {}, // layer -> bool
+      locked: {},  // layer -> bool (impede mover/editar)
+    };
 
-    function openScenePanel() {
-      if (!isHost) return alert("Apenas o Host pode salvar/carregar cenas.");
-      scenePanel.classList.toggle('show');
-      updateQualityLabel();
-      updateSceneSizeEstimate();
+    function ensureLayerDefaults(layer){
+      if (layer == null) return;
+      if (!(layer in layerState.visible)) layerState.visible[layer] = true;
+      if (!(layer in layerState.locked)) layerState.locked[layer] = false;
     }
 
-    function showNotification(msg) {
-      const notif = document.getElementById('notification');
-      notif.innerText = msg;
-      notif.classList.add('active');
-      setTimeout(() => notif.classList.remove('active'), 2000);
+    function computeTokenZIndex(layer){
+      // mapa fica fixo no 5. grid 6.
+      // tokens começam em 100, e cada layer soma 10
+      const base = 100;
+      const l = Number(layer || 1);
+      return base + (l * 10);
     }
 
-    function copyInviteLink() {
-      if (!myId) return alert("Aguarde a conexão...");
-      if (!isHost) return alert("Apenas o Host copia convite.");
+    function applyLayerVisibilityToDOM(){
+      document.querySelectorAll('.token').forEach(t=>{
+        const layer = Number(t.dataset.layer || 1);
+        ensureLayerDefaults(layer);
+        const vis = !!layerState.visible[layer];
+        t.style.display = vis ? "" : "none";
+      });
+    }
 
-      const urlObj = new URL(window.location.href);
-      urlObj.searchParams.set('room', myId);
-      const inviteUrl = urlObj.toString();
+    function toggleLayersPanel(){
+      if (!isHost) return alert("Apenas o Host gerencia camadas.");
+      layersPanel.classList.toggle('show');
+      rebuildLayersPanel();
+    }
 
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(inviteUrl)
-          .then(() => showNotification("Link copiado!"))
-          .catch(() => fallbackCopy(inviteUrl));
-      } else {
-        fallbackCopy(inviteUrl);
+    function rebuildLayersPanel(){
+      if (!isHost) return;
+
+      const layers = new Set();
+      Object.values(state.tokens).forEach(t => layers.add(Number(t.layer || 1)));
+      // sempre listar 1..max
+      const maxLayer = layers.size ? Math.max(...Array.from(layers)) : 3;
+
+      layersList.innerHTML = "";
+
+      for (let l=1; l<=Math.max(maxLayer,3); l++){
+        ensureLayerDefaults(l);
+
+        const row = document.createElement('div');
+        row.className = "layer-row";
+
+        const left = document.createElement('div');
+        left.innerHTML = `<b>Layer ${l}</b> <span style="font-size:10px;opacity:.7;">(tokens)</span>`;
+
+        const actions = document.createElement('div');
+        actions.className = "layer-actions";
+
+        const vis = document.createElement('div');
+        vis.className = "pill " + (layerState.visible[l] ? "active" : "");
+        vis.innerText = layerState.visible[l] ? "Visível" : "Oculta";
+        vis.onclick = () => {
+          layerState.visible[l] = !layerState.visible[l];
+          const action = { type:"LAYER_SET", layer:l, prop:"visible", value: layerState.visible[l] };
+          applyAction(action,false);
+          broadcastACT(action);
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+        };
+
+        const lock = document.createElement('div');
+        lock.className = "pill " + (layerState.locked[l] ? "active" : "");
+        lock.innerText = layerState.locked[l] ? "Trancada" : "Livre";
+        lock.onclick = () => {
+          layerState.locked[l] = !layerState.locked[l];
+          const action = { type:"LAYER_SET", layer:l, prop:"locked", value: layerState.locked[l] };
+          applyAction(action,false);
+          broadcastACT(action);
+          rebuildLayersPanel();
+        };
+
+        actions.appendChild(vis);
+        actions.appendChild(lock);
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        layersList.appendChild(row);
       }
     }
 
-    function fallbackCopy(text) {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.top = "0";
-      textArea.style.left = "0";
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        const ok = document.execCommand('copy');
-        if (ok) showNotification("Link copiado!");
-        else prompt("Pressione Ctrl+C para copiar o link:", text);
-      } catch {
-        prompt("Pressione Ctrl+C para copiar o link:", text);
-      }
-      document.body.removeChild(textArea);
-    }
+    // ===== ESTADO (Host autoritativo) =====
+    const state = {
+      map: { src:null, locked:false, x:0, y:0 }, // x/y = offset do mapa dentro do canvas
+      tokens: {} // id -> props
+    };
 
-    function setRoleUI() {
+    // ===== UI =====
+    function toggleHUD(){ document.body.classList.toggle('hud-hidden'); }
+    function toggleSidebar(){ sidebar.classList.toggle('open'); }
+    function toggleGrid(){ gridLayer.style.display = (gridLayer.style.display === 'none') ? 'block' : 'none'; }
+    function toggleNetworkPanel(){ networkPanel.classList.toggle('show'); }
+
+    function setRoleUI(){
       roleText.textContent = isHost ? "HOST (Mestre)" : "PLAYER";
 
       hostOnlyMap.style.display = isHost ? "" : "none";
-      hostOnlyTokens.style.display = isHost ? "" : "none";
+      hostOnlyPlayers.style.display = isHost ? "" : "none";
+      hostOnlyAssets.style.display = isHost ? "" : "none";
       hostOnlyClear.style.display = isHost ? "" : "none";
+
       btnLockAll.style.display = isHost ? "" : "none";
       btnLockMap.style.display = isHost ? "" : "none";
       btnInvite.style.display = isHost ? "" : "none";
       btnD20.style.display = isHost ? "" : "none";
       btnD6.style.display = isHost ? "" : "none";
-      if (btnSaveScene) btnSaveScene.style.display = isHost ? "" : "none";
-      if (scenePanel) scenePanel.style.display = isHost ? "" : "none";
-      if (btnLibrary) btnLibrary.style.display = isHost ? "" : "none";
-      if (libraryPanel) libraryPanel.style.display = isHost ? "" : "none";
+      btnSaveScene.style.display = isHost ? "" : "none";
+      btnLibrary.style.display = isHost ? "" : "none";
+      btnLayers.style.display = isHost ? "" : "none";
+      scenePanel.style.display = isHost ? "" : "none";
+      layersPanel.style.display = isHost ? "" : "none";
+      libraryPanel.style.display = isHost ? "" : "none";
     }
 
-    // =============== Transform / Pan / Zoom ===============
-    function updateTransform() {
-      canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
-    }
-    updateTransform();
+    // ===== Convite =====
+    function copyInviteLink(){
+      if (!myId) return alert("Aguarde a conexão...");
+      if (!isHost) return alert("Apenas o Host copia convite.");
+      const u = new URL(window.location.href);
+      u.searchParams.set('room', myId);
+      const invite = u.toString();
 
-    viewport.addEventListener('wheel', (e) => {
+      if (navigator.clipboard?.writeText){
+        navigator.clipboard.writeText(invite).then(()=>showNotification("Link copiado!")).catch(()=>prompt("Copie:", invite));
+      } else prompt("Copie:", invite);
+    }
+
+    // ===== PAN/ZOOM viewport =====
+    viewport.addEventListener('wheel',(e)=>{
       if (e.ctrlKey) return;
       e.preventDefault();
-      const zoomSpeed = 0.15;
-      const delta = e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-      const newScale = Math.min(Math.max(0.05, scale + delta), 4);
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-      const contentMouseX = (mouseX - posX) / scale;
-      const contentMouseY = (mouseY - posY) / scale;
-      scale = newScale;
-      posX = mouseX - contentMouseX * scale;
-      posY = mouseY - contentMouseY * scale;
-      updateTransform();
-    }, { passive: false });
+      const zoomSpeed=.15;
+      const delta = e.deltaY>0 ? -zoomSpeed : zoomSpeed;
+      const newScale = Math.min(Math.max(.05, scale+delta), 4);
 
-    window.addEventListener('mousedown', (e) => {
-      if (e.button === 2 || e.button === 1 || (e.button === 0 && e.altKey)) {
-        isPanning = true;
-        startPan = { x: e.clientX - posX, y: e.clientY - posY };
-        viewport.style.cursor = 'grabbing';
+      const mx=e.clientX,my=e.clientY;
+      const cx=(mx-posX)/scale, cy=(my-posY)/scale;
+
+      scale = newScale;
+      posX = mx - cx*scale;
+      posY = my - cy*scale;
+      updateTransform();
+    },{passive:false});
+
+    window.addEventListener('mousedown',(e)=>{
+      if (e.button===2 || e.button===1 || (e.button===0 && e.altKey)){
+        isPanning=true;
+        startPan={x:e.clientX-posX,y:e.clientY-posY};
+        viewport.style.cursor='grabbing';
       }
     });
-
-    window.addEventListener('mousemove', (e) => {
-      if (isPanning) {
-        posX = e.clientX - startPan.x;
-        posY = e.clientY - startPan.y;
+    window.addEventListener('mousemove',(e)=>{
+      if (isPanning){
+        posX=e.clientX-startPan.x;
+        posY=e.clientY-startPan.y;
         updateTransform();
       }
     });
+    window.addEventListener('mouseup',()=>{ isPanning=false; viewport.style.cursor='grab'; });
 
-    window.addEventListener('mouseup', () => { isPanning = false; viewport.style.cursor = 'grab'; });
+    // ===== MAPA “PALPÁVEL” COM INÉRCIA =====
+    let mapDragging=false;
+    let mapDragStart={mx:0,my:0,x:0,y:0};
+    let mapVel={vx:0,vy:0};
+    let mapLastMove={t:0,x:0,y:0};
+    let mapInertiaRAF=null;
 
-    // =============== Protocolo de Mensagens ===============
-    // kind: "REQ" (client->host), "ACT" (host->all), "SYNC" (host->client)
-    function sendREQ(action) {
-      if (isHost) {
-        applyHostAuthorizedAction(action, { sender: myId });
-        return;
-      }
-      if (hostConnection && hostConnection.open) {
-        hostConnection.send({ kind: "REQ", sender: myId, action });
-      }
-    }
-
-    function broadcastACT(action, meta = {}) {
-      if (!isHost) return;
-      const msg = { kind: "ACT", sender: myId, action, meta };
-      connections.forEach(c => { if (c.open) c.send(msg); });
-    }
-
-    function sendSYNC(conn) {
-      if (!isHost) return;
-      conn.send({ kind: "SYNC", sender: myId, state });
-    }
-
-    function handleNetworkData(data, connPeerId = null) {
-      if (!data || !data.kind) return;
-
-      if (data.kind === "SYNC") {
-        applyFullSync(data.state);
-        return;
-      }
-      if (data.kind === "ACT") {
-        applyAction(data.action, true);
-        return;
-      }
-      if (data.kind === "REQ") {
-        if (!isHost) return;
-        const sender = data.sender || connPeerId || "unknown";
-        applyHostAuthorizedAction(data.action, { sender });
-      }
-    }
-
-    // =============== Validação (HOST) ===============
-    function validateClientAction(action, sender) {
-      if (!action || !action.type) return { ok: false, reason: "Ação inválida" };
-
-      const allowedClientTypes = new Set(["MOVE", "UPDATE_PROP"]);
-      if (!allowedClientTypes.has(action.type)) return { ok: false, reason: "Ação não permitida para player" };
-
-      const tokenId = action.id;
-      if (!tokenId || !state.tokens[tokenId]) return { ok: false, reason: "Token inexistente" };
-
-      const tok = state.tokens[tokenId];
-      if (String(tok.locked) === "true") return { ok: false, reason: "Token travado" };
-
-      if (action.type === "UPDATE_PROP") {
-        const allowedProps = new Set(["rotation", "flipped", "innerZoom", "size", "fitMode"]);
-        if (!allowedProps.has(action.prop)) return { ok: false, reason: "Propriedade não permitida" };
-
-        if (action.prop === "innerZoom") {
-          const z = Number(action.value);
-          if (!Number.isFinite(z) || z < 0.2 || z > 5) return { ok: false, reason: "Zoom inválido" };
-        }
-        if (action.prop === "rotation") {
-          const r = Number(action.value);
-          if (!Number.isFinite(r)) return { ok: false, reason: "Rotação inválida" };
-        }
-        if (action.prop === "size") {
-          const w = Number(action.value?.w), h = Number(action.value?.h);
-          if (!Number.isFinite(w) || !Number.isFinite(h)) return { ok: false, reason: "Size inválido" };
-          if (w < 40 || w > 2500 || h < 40 || h > 2500) return { ok: false, reason: "Size fora do limite" };
-        }
-        if (action.prop === "fitMode") {
-          const m = String(action.value);
-          if (!["contain", "cover"].includes(m)) return { ok: false, reason: "fitMode inválido" };
-        }
-      }
-
-      return { ok: true };
-    }
-
-    function applyHostAuthorizedAction(action, { sender }) {
-      if (!action || !action.type) return;
-
-      const cameFromClient = sender && sender !== myId;
-      if (cameFromClient) {
-        const v = validateClientAction(action, sender);
-        if (!v.ok) {
-          console.warn("REQ negada:", v.reason, action);
-          return;
-        }
-      }
-
-      applyAction(action, false);
-      broadcastACT(action, { approvedBy: myId, originalSender: sender });
-    }
-
-    // =============== Apply Action ===============
-    function applyAction(action, fromNetwork) {
-      switch (action.type) {
-        case "MOVE": {
-          const { id, x, y } = action;
-          moveTokenDOM(id, x, y);
-          if (isHost && state.tokens[id]) { state.tokens[id].x = x; state.tokens[id].y = y; }
-          break;
-        }
-
-        case "CREATE_TOKEN": {
-          const { id, src, contentType, props } = action;
-          addTokenLocal(src, contentType, id, props);
-          if (isHost) state.tokens[id] = normalizeTokenProps(id, src, contentType, props);
-          break;
-        }
-
-        case "REMOVE_TOKEN": {
-          const { id } = action;
-          removeTokenLocal(id);
-          if (isHost) delete state.tokens[id];
-          break;
-        }
-
-        case "UPDATE_PROP": {
-          const { id, prop, value } = action;
-          updateTokenPropDOM(id, prop, value);
-          if (isHost && state.tokens[id]) {
-            if (prop === "locked") state.tokens[id].locked = value;
-            if (prop === "innerZoom") state.tokens[id].innerZoom = value;
-            if (prop === "rotation") state.tokens[id].rotation = value;
-            if (prop === "flipped") state.tokens[id].flipped = value;
-            if (prop === "fitMode") state.tokens[id].fitMode = value;
-            if (prop === "size") { state.tokens[id].w = value.w; state.tokens[id].h = value.h; }
-          }
-          break;
-        }
-
-        case "MAP_UPDATE": {
-          const { src } = action;
-          applyMapLocal(src, false);
-          if (isHost) state.mapSrc = src;
-          break;
-        }
-
-        case "MAP_LOCK": {
-          const { locked } = action;
-          setMapLockLocal(!!locked, false);
-          if (isHost) state.mapLocked = !!locked;
-          break;
-        }
-
-        case "DICE": {
-          const { faces, result } = action;
-          showDiceLog(faces, result);
-          break;
-        }
-
-        case "CLEAR": {
-          clearTableLocal(false);
-          if (isHost) {
-            state.mapSrc = null;
-            state.mapLocked = false;
-            state.tokens = {};
-          }
-          break;
-        }
-      }
-    }
-
-    // =============== Sync (Client) ===============
-    function applyFullSync(s) {
-      if (!s) return;
-
-      document.querySelectorAll('.token').forEach(t => t.remove());
-      mapContainer.innerHTML = "";
-      document.querySelectorAll('.dice-entry').forEach(l => l.remove());
-      selectedToken = null;
-
-      if (s.mapSrc) applyMapLocal(s.mapSrc, false);
-      setMapLockLocal(!!s.mapLocked, false);
-
-      const tokens = s.tokens || {};
-      Object.keys(tokens).forEach(id => {
-        const t = tokens[id];
-        addTokenLocal(t.src, t.type, id, t);
-      });
-
-      if (!isHost) {
-        state.mapSrc = s.mapSrc || null;
-        state.mapLocked = !!s.mapLocked;
-        state.tokens = JSON.parse(JSON.stringify(tokens));
-      }
-
-      updateSceneSizeEstimate();
-    }
-
-    // =============== PeerJS Setup ===============
-    function initNetwork() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomID = urlParams.get('room');
-
-      peer = new Peer(null, { debug: 2, config: PEER_ICE_CONFIG });
-
-      peer.on('open', (id) => {
-        myId = id;
-
-        if (roomID) {
-          isHost = false;
-          setRoleUI();
-          statusText.innerText = "Conectando ao Host...";
-          tinyStatus.textContent = "Conectando...";
-          tinyRoom.textContent = roomID;
-          connectToHost(roomID);
-        } else {
-          isHost = true;
-          setRoleUI();
-          statusText.innerText = "Online (Host)";
-          tinyStatus.textContent = "Online (Host)";
-          tinyRoom.textContent = id;
-          statusDot.classList.add('online');
-          toggleNetworkPanel();
-
-          peer.on('connection', (conn) => {
-            connections.push(conn);
-            setupConnection(conn);
-
-            conn.on('open', () => { setTimeout(() => sendSYNC(conn), 200); });
-            conn.on('close', () => { connections = connections.filter(c => c !== conn); });
-          });
-        }
-      });
-
-      peer.on('error', (err) => {
-        console.error(err);
-        statusText.innerText = "Erro Rede";
-        tinyStatus.textContent = "Erro Rede";
-        statusDot.classList.remove('online');
-      });
-    }
-
-    function connectToHost(hostId) {
-      hostConnection = peer.connect(hostId);
-      setupConnection(hostConnection);
-
-      hostConnection.on('open', () => {
-        statusText.innerText = "Conectado";
-        tinyStatus.textContent = "Conectado";
-        statusDot.classList.add('online');
-      });
-
-      hostConnection.on('close', () => {
-        statusText.innerText = "Desconectado";
-        tinyStatus.textContent = "Desconectado";
-        statusDot.classList.remove('online');
-        alert("O Host desconectou.");
-      });
-    }
-
-    function setupConnection(conn) {
-      conn.on('data', (data) => handleNetworkData(data, conn.peer));
-    }
-
-    // =============== Mapa ===============
-    let mapLocked = false;
-
-    function setMapLockLocal(lock, emit) {
-      mapLocked = !!lock;
-      if (mapLocked) mapContainer.classList.add('locked');
+    function setMapLockLocal(lock, emit){
+      state.map.locked = !!lock;
+      if (state.map.locked) mapContainer.classList.add('locked');
       else mapContainer.classList.remove('locked');
 
-      const btn = document.getElementById('btn-lock-map');
-      if (btn) {
-        if (mapLocked) { btn.innerHTML = "🔒 Mapa Fixo"; btn.classList.add('active'); }
-        else { btn.innerHTML = "🔓 Mapa Móvel"; btn.classList.remove('active'); }
+      if (state.map.locked) {
+        btnLockMap.innerHTML="🔒 Mapa Fixo"; btnLockMap.classList.add('active');
+      } else {
+        btnLockMap.innerHTML="🔓 Mapa Móvel"; btnLockMap.classList.remove('active');
       }
 
-      if (emit) {
+      if (emit){
         if (!isHost) return;
-        const action = { type: "MAP_LOCK", locked: mapLocked };
-        applyAction(action, false);
+        const action = { type:"MAP_LOCK", locked: state.map.locked };
+        applyAction(action,false);
         broadcastACT(action);
       }
     }
 
-    function toggleMapLock() {
+    function toggleMapLock(){
       if (!isHost) return;
-      setMapLockLocal(!mapLocked, true);
+      setMapLockLocal(!state.map.locked, true);
     }
 
-    function applyMapLocal(src, emit) {
+    function setMapOffset(x, y){
+      state.map.x = x;
+      state.map.y = y;
+      mapContainer.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    function stopMapInertia(){
+      if (mapInertiaRAF) cancelAnimationFrame(mapInertiaRAF);
+      mapInertiaRAF = null;
+    }
+
+    function startMapInertia(){
+      stopMapInertia();
+      const friction = 0.92;
+      const minV = 0.05;
+
+      const step = () => {
+        mapVel.vx *= friction;
+        mapVel.vy *= friction;
+
+        if (Math.abs(mapVel.vx) < minV && Math.abs(mapVel.vy) < minV) {
+          mapVel.vx = 0; mapVel.vy = 0;
+          stopMapInertia();
+
+          // sync final
+          if (isHost){
+            const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
+            applyAction(action,false);
+            broadcastACT(action);
+          }
+          return;
+        }
+
+        setMapOffset(state.map.x + mapVel.vx, state.map.y + mapVel.vy);
+
+        mapInertiaRAF = requestAnimationFrame(step);
+      };
+
+      mapInertiaRAF = requestAnimationFrame(step);
+    }
+
+    function setupMapDrag(){
+      // pega a IMG atual quando existir
+      mapContainer.addEventListener('mousedown', (e)=>{
+        if (!isHost) return;            // só host move mapa
+        if (state.map.locked) return;
+        const img = mapContainer.querySelector('img');
+        if (!img) return;
+
+        if (e.button !== 0 || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        mapDragging = true;
+        mapContainer.classList.add('dragging');
+        stopMapInertia();
+
+        mapDragStart = { mx:e.clientX, my:e.clientY, x:state.map.x, y:state.map.y };
+        mapVel = { vx:0, vy:0 };
+        mapLastMove = { t: performance.now(), x: state.map.x, y: state.map.y };
+
+        const onMove = (me) => {
+          if (!mapDragging) return;
+
+          const dx = (me.clientX - mapDragStart.mx) / scale; // compensar zoom do canvas
+          const dy = (me.clientY - mapDragStart.my) / scale;
+
+          const nx = mapDragStart.x + dx;
+          const ny = mapDragStart.y + dy;
+          setMapOffset(nx, ny);
+
+          const now = performance.now();
+          const dt = Math.max(1, now - mapLastMove.t);
+          mapVel.vx = (nx - mapLastMove.x) / dt * 16; // normaliza ~60fps
+          mapVel.vy = (ny - mapLastMove.y) / dt * 16;
+          mapLastMove = { t: now, x: nx, y: ny };
+        };
+
+        const onUp = () => {
+          mapDragging = false;
+          mapContainer.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+
+          // começa inércia
+          startMapInertia();
+
+          // sync imediato também (pra sensação de “pegou”)
+          const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
+          applyAction(action,false);
+          broadcastACT(action);
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+    setupMapDrag();
+
+    function applyMapLocal(src, emit){
       const img = new Image();
       img.onload = () => {
-        mapContainer.innerHTML = '';
+        mapContainer.innerHTML = "";
         mapContainer.appendChild(img);
+
+        // Ao trocar mapa, centraliza câmera mas mantém offset do mapa em 0,0 (host pode mover depois)
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
-        posX = window.innerWidth / 2 - (img.width * scale) / 2;
-        posY = window.innerHeight / 2 - (img.height * scale) / 2;
+        posX = window.innerWidth/2 - (img.width * scale)/2;
+        posY = window.innerHeight/2 - (img.height * scale)/2;
         updateTransform();
+
+        setMapOffset(state.map.x || 0, state.map.y || 0);
       };
       img.src = src;
 
-      if (emit) {
+      if (emit){
         if (!isHost) return;
-        const action = { type: "MAP_UPDATE", src };
-        applyAction(action, false);
+        const action = { type:"MAP_UPDATE", src };
+        applyAction(action,false);
         broadcastACT(action);
       }
     }
 
-    function isImageUrl(url) {
-      return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i) != null) || url.startsWith('data:image');
-    }
-
-    function importFromUrl(inputId, type) {
-      if (!isHost) return alert("Apenas o Host importa.");
-      const url = document.getElementById(inputId).value.trim();
-      if (!url) return;
-
-      if (isImageUrl(url)) {
-        if (type === 'map') {
-          applyMapLocal(url, true);
-          addToLibrary("maps", url);
-        } else {
-          hostCreateToken(url, 'image', false);
-          addToLibrary("tokens", url);
-        }
-        document.getElementById(inputId).value = "";
-      } else {
-        if (type === 'map') alert("Mapas precisam ser imagens diretas.");
-        else {
-          // web tokens não entram na biblioteca (por pedido: só imagens)
-          hostCreateToken(url, 'web', false);
-          document.getElementById(inputId).value = "";
-        }
-      }
-      updateSceneSizeEstimate();
-    }
-
-    function importAsset(event, type) {
-      if (!isHost) return alert("Apenas o Host importa.");
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
-        if (type === 'map') {
-          applyMapLocal(dataUrl, true);
-          addToLibrary("maps", dataUrl, "mapa-local");
-        } else {
-          hostCreateToken(dataUrl, 'image', false);
-          addToLibrary("tokens", dataUrl, "token-local");
-        }
-        updateSceneSizeEstimate();
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // =============== Tokens ===============
-    function normalizeTokenProps(id, src, type, props) {
+    // ===== TOKENS =====
+    function normalizeTokenProps(id, src, type, props){
       const p = props || {};
+      const layer = Number(p.layer ?? 2);
+      ensureLayerDefaults(layer);
       return {
         id,
         src,
         type,
+        kind: p.kind ?? "asset",        // "player" | "asset"
+        layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
-        w: p.w ?? 120,
-        h: p.h ?? 120,
+        w: p.w ?? 140,
+        h: p.h ?? 140,
         rotation: p.rotation ?? 0,
         flipped: p.flipped ?? "false",
         innerZoom: p.innerZoom ?? 1,
         locked: p.locked ?? "false",
-        fitMode: p.fitMode ?? "contain",
-        portrait: p.portrait ?? "false"
+        fitMode: p.fitMode ?? "contain"
       };
     }
 
-    function hostCreateToken(src, contentType, autoPortrait = false) {
+    function hostCreateToken(src, contentType, kind){
       if (!isHost) return;
 
       const id = generateUUID();
 
-      let width = (contentType === 'web') ? 400 : 140;
-      let height = (contentType === 'web') ? 225 : 140;
+      const isImg = contentType === "image";
+      let width = isImg ? 160 : 400;
+      let height = isImg ? 160 : 225;
 
-      if (contentType === "image" && autoPortrait) {
-        width = 220;
-        height = 320;
-      }
+      // defaults por tipo
+      const layerDefault = (kind === "player") ? 3 : 2;
 
-      const centerX = (window.innerWidth / 2 - posX) / scale;
-      const centerY = (window.innerHeight / 2 - posY) / scale;
+      const centerX = (window.innerWidth/2 - posX)/scale;
+      const centerY = (window.innerHeight/2 - posY)/scale;
 
       const props = {
-        x: (centerX - width / 2) + "px",
-        y: (centerY - height / 2) + "px",
+        kind,
+        layer: layerDefault,
+        x: (centerX - width/2) + "px",
+        y: (centerY - height/2) + "px",
         w: width,
         h: height,
         rotation: 0,
         flipped: "false",
         innerZoom: 1,
         locked: "false",
-        fitMode: "contain",
-        portrait: (contentType === "image" && autoPortrait) ? "true" : "false"
+        fitMode: "contain"
       };
 
-      const action = { type: "CREATE_TOKEN", id, src, contentType, props };
-      applyAction(action, false);
+      const action = { type:"CREATE_TOKEN", id, src, contentType, props };
+      applyAction(action,false);
       broadcastACT(action);
+
+      rebuildLayersPanel();
+      applyLayerVisibilityToDOM();
       updateSceneSizeEstimate();
     }
 
-    function addTokenLocal(src, contentType, id, props) {
+    function addTokenLocal(src, contentType, id, props){
       if (document.getElementById(`token-${id}`)) return;
 
       const token = document.createElement('div');
       token.id = `token-${id}`;
+      token.className = "token";
       token.dataset.uuid = id;
       token.dataset.type = contentType;
-      token.className = `token`;
 
-      const width = props?.w ? parseInt(props.w) : (contentType === "web" ? 400 : 140);
-      const height = props?.h ? parseInt(props.h) : (contentType === "web" ? 225 : 140);
+      const layer = Number(props?.layer ?? 2);
+      const kind = props?.kind ?? "asset";
+      ensureLayerDefaults(layer);
 
+      token.dataset.layer = String(layer);
+      token.dataset.kind = kind;
+
+      token.style.zIndex = String(computeTokenZIndex(layer));
+
+      const width = props?.w ? parseInt(props.w) : (contentType==="web"?400:160);
+      const height = props?.h ? parseInt(props.h) : (contentType==="web"?225:160);
       token.style.width = width + "px";
       token.style.height = height + "px";
 
-      if (props?.x != null && props?.y != null) {
-        token.style.left = props.x;
-        token.style.top = props.y;
-      } else {
-        const centerX = (window.innerWidth / 2 - posX) / scale;
-        const centerY = (window.innerHeight / 2 - posY) / scale;
-        token.style.left = (centerX - width / 2) + "px";
-        token.style.top = (centerY - height / 2) + "px";
-      }
+      const x = props?.x ?? "0px";
+      const y = props?.y ?? "0px";
+      token.style.left = x;
+      token.style.top = y;
 
       token.dataset.sizeW = width;
       token.dataset.sizeH = height;
@@ -1271,47 +942,46 @@
       token.dataset.innerZoom = props?.innerZoom ?? 1;
       token.dataset.locked = props?.locked ?? "false";
       token.dataset.fitMode = props?.fitMode ?? "contain";
-      token.dataset.portrait = props?.portrait ?? "false";
 
-      if (token.dataset.portrait === "true") token.setAttribute("data-portrait", "true");
-
-      if (token.dataset.locked === "true") {
+      if (token.dataset.locked === "true"){
         token.classList.add('locked');
         token.style.pointerEvents = "none";
       }
 
       const blocker = document.createElement('div');
-      blocker.className = 'token-blocker';
+      blocker.className = "token-blocker";
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'token-content-wrapper';
+      wrapper.className = "token-content-wrapper";
 
       let content;
-      if (contentType === 'image') {
+      if (contentType === "image"){
         content = document.createElement('img');
         content.src = src;
       } else {
         content = document.createElement('iframe');
         content.src = src;
-        content.setAttribute('frameborder', '0');
-        content.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+        content.setAttribute('frameborder','0');
+        content.setAttribute('sandbox','allow-scripts allow-same-origin');
       }
 
       const handle = document.createElement('div');
-      handle.className = 'resize-handle';
+      handle.className = "resize-handle";
 
       const controls = document.createElement('div');
-      controls.className = 'token-controls';
+      controls.className = "token-controls";
       controls.innerHTML = `
+        <span class="token-btn" title="Layer -" onclick="layerToken(event, -1)">🧱➖</span>
+        <span class="token-btn" title="Layer +" onclick="layerToken(event, 1)">🧱➕</span>
         <span class="token-btn" title="Tamanho -" onclick="scaleToken(event, -40)">📏➖</span>
         <span class="token-btn" title="Tamanho +" onclick="scaleToken(event, 40)">📏➕</span>
         <span class="token-btn" title="Zoom Interno -" onclick="zoomInnerToken(event, -0.1)">➖</span>
         <span class="token-btn" title="Zoom Interno +" onclick="zoomInnerToken(event, 0.1)">➕</span>
-        <span class="token-btn" title="Fit (cabem perfeito)" onclick="fitToken(event)">🧩</span>
+        <span class="token-btn" title="Fit" onclick="fitToken(event)">🧩</span>
         <span class="token-btn" title="Reset" onclick="resetToken(event)">♻️</span>
         <span class="token-btn" title="Espelhar (F)" onclick="flipToken(this.closest('.token'))">↔️</span>
         <span class="token-btn" title="Girar 45°" onclick="rotateToken(event, 45)">🔄</span>
-        <span class="token-btn" title="Trancar Peça" onclick="lockToken(event)">🔒</span>
+        <span class="token-btn" title="Trancar" onclick="lockToken(event)">🔒</span>
         <span class="token-btn text-red-400" title="Eliminar" onclick="deleteToken(event)">🗑️</span>
       `;
 
@@ -1322,807 +992,506 @@
       token.appendChild(controls);
       canvas.appendChild(token);
 
-      setTimeout(() => updateImgTransform(token), 10);
+      setTimeout(()=>updateImgTransform(token),10);
 
-      token.addEventListener('wheel', (e) => {
+      // layer visibility
+      const vis = !!layerState.visible[layer];
+      token.style.display = vis ? "" : "none";
+
+      // resize via ctrl+wheel
+      token.addEventListener('wheel',(e)=>{
         if (!e.ctrlKey) return;
         if (token.dataset.locked === "true") return;
+        // trava por layer?
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
         e.preventDefault(); e.stopPropagation();
+        const delta = e.deltaY>0 ? -20 : 20;
 
-        const delta = e.deltaY > 0 ? -20 : 20;
-        if (isHost) {
-          resizeTokenDirect(token, delta, true);
-        } else {
-          const startW = parseInt(token.dataset.sizeW);
-          const startH = parseInt(token.dataset.sizeH);
-          const ratio = startH / startW;
-          const newW = Math.max(40, Math.min(startW + delta, 2500));
-          const newH = Math.max(40, Math.min(newW * ratio, 2500));
-          sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: newW, h: newH } });
-        }
-      }, { passive: false });
-
-      handle.addEventListener('mousedown', (e) => {
-        if (token.dataset.locked === "true") return;
-        e.stopPropagation(); e.preventDefault();
-
-        const startX = e.clientX;
         const startW = parseInt(token.dataset.sizeW);
         const startH = parseInt(token.dataset.sizeH);
-        const ratio = startH / startW;
-        let pendingW = startW, pendingH = startH;
+        const ratio = startH/startW;
+        const newW = Math.max(40, Math.min(startW + delta, 2500));
+        const newH = Math.max(40, Math.min(newW * ratio, 2500));
 
-        function onMove(me) {
-          const deltaW = ((me.clientX - startX) / scale) * 1.5;
-          let w = Math.max(40, Math.min(startW + deltaW, 2500));
-          let h = Math.max(40, Math.min(w * ratio, 2500));
-          pendingW = Math.round(w);
-          pendingH = Math.round(h);
+        const action = { type:"UPDATE_PROP", id: token.dataset.uuid, prop:"size", value:{w:newW,h:newH} };
+        if (isHost){ applyAction(action,false); broadcastACT(action); }
+        else sendREQ(action);
 
-          token.dataset.sizeW = pendingW;
-          token.dataset.sizeH = pendingH;
-          token.style.width = pendingW + "px";
-          token.style.height = pendingH + "px";
+        updateSceneSizeEstimate();
+      },{passive:false});
+
+      // resize handle drag
+      handle.addEventListener('mousedown',(e)=>{
+        if (token.dataset.locked === "true") return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+        if (e.button!==0) return;
+
+        e.stopPropagation(); e.preventDefault();
+        const startX=e.clientX;
+        const startW=parseInt(token.dataset.sizeW);
+        const startH=parseInt(token.dataset.sizeH);
+        const ratio=startH/startW;
+
+        let pendingW=startW, pendingH=startH;
+
+        function onMove(me){
+          const deltaW=((me.clientX-startX)/scale)*1.5;
+          let w=Math.max(40, Math.min(startW+deltaW, 2500));
+          let h=Math.max(40, Math.min(w*ratio, 2500));
+          pendingW=Math.round(w); pendingH=Math.round(h);
+          token.dataset.sizeW=pendingW; token.dataset.sizeH=pendingH;
+          token.style.width=pendingW+"px"; token.style.height=pendingH+"px";
         }
-
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-
-          if (isHost) {
-            const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: pendingW, h: pendingH } };
-            applyAction(action, false);
-            broadcastACT(action);
-            updateSceneSizeEstimate();
-          } else {
-            sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: pendingW, h: pendingH } });
-          }
+        function onUp(){
+          document.removeEventListener('mousemove',onMove);
+          document.removeEventListener('mouseup',onUp);
+          const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w:pendingW,h:pendingH} };
+          if (isHost){ applyAction(action,false); broadcastACT(action); }
+          else sendREQ(action);
+          updateSceneSizeEstimate();
         }
-
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
       });
 
-      token.addEventListener('mousedown', (e) => {
-        if (e.button !== 0 || e.altKey) return;
-        if (token.dataset.locked === "true") return;
-
+      // drag token
+      token.addEventListener('mousedown',(e)=>{
+        if (e.button!==0 || e.altKey) return;
+        if (token.dataset.locked==="true") return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return; // layer trancada
         e.stopPropagation();
         selectToken(token);
         startDraggingToken(e, token);
       });
     }
 
-    function removeTokenLocal(id) {
-      const t = document.getElementById(`token-${id}`);
-      if (t) t.remove();
-      if (selectedToken && selectedToken.dataset.uuid === id) selectedToken = null;
-      updateSceneSizeEstimate();
-    }
-
-    function moveTokenDOM(id, x, y) {
-      const token = document.getElementById(`token-${id}`);
-      if (!token) return;
-      token.style.left = x;
-      token.style.top = y;
-
-      if (!isHost && state.tokens[id]) {
-        state.tokens[id].x = x; state.tokens[id].y = y;
-      }
-    }
-
-    function updateTokenPropDOM(id, prop, value) {
-      const token = document.getElementById(`token-${id}`);
-      if (!token) return;
-
-      if (prop === 'locked') {
-        token.dataset.locked = String(value);
-        if (String(value) === "true") {
-          token.classList.add('locked');
-          token.style.pointerEvents = "none";
-          token.classList.remove('selected');
-          if (selectedToken && selectedToken.dataset.uuid === id) selectedToken = null;
-        } else {
-          token.classList.remove('locked');
-          token.style.pointerEvents = "auto";
-        }
-      } else if (prop === 'innerZoom') {
-        token.dataset.innerZoom = value;
-        updateImgTransform(token);
-      } else if (prop === 'rotation') {
-        token.dataset.rotation = value;
-        updateImgTransform(token);
-      } else if (prop === 'flipped') {
-        token.dataset.flipped = value;
-        updateImgTransform(token);
-      } else if (prop === 'fitMode') {
-        token.dataset.fitMode = value;
-        updateImgTransform(token);
-      } else if (prop === 'size') {
-        token.style.width = value.w + "px";
-        token.style.height = value.h + "px";
-        token.dataset.sizeW = value.w;
-        token.dataset.sizeH = value.h;
-      }
-
-      if (!isHost && state.tokens[id]) {
-        if (prop === "locked") state.tokens[id].locked = String(value);
-        if (prop === "innerZoom") state.tokens[id].innerZoom = value;
-        if (prop === "rotation") state.tokens[id].rotation = value;
-        if (prop === "flipped") state.tokens[id].flipped = value;
-        if (prop === "fitMode") state.tokens[id].fitMode = value;
-        if (prop === "size") { state.tokens[id].w = value.w; state.tokens[id].h = value.h; }
-      }
-
-      updateSceneSizeEstimate();
-    }
-
-    function updateImgTransform(token) {
+    function updateImgTransform(token){
       const el = token.querySelector('img') || token.querySelector('iframe');
       if (!el) return;
 
-      // fitMode só faz sentido pra IMG
-      if (el.tagName === "IMG") {
+      if (el.tagName === "IMG"){
         el.style.objectFit = token.dataset.fitMode || "contain";
       }
-
       const rotation = token.dataset.rotation || 0;
       const flipped = token.dataset.flipped === "true";
       const innerZoom = token.dataset.innerZoom || 1;
-      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped ? -1 : 1})`;
+      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped?-1:1})`;
     }
 
-    function selectToken(token) {
-      if (token.dataset.locked === "true") return;
+    function selectToken(token){
       if (selectedToken) selectedToken.classList.remove('selected');
       selectedToken = token;
       selectedToken.classList.add('selected');
     }
 
-    function startDraggingToken(e, token) {
-      let startX = e.clientX;
-      let startY = e.clientY;
-      let initialLeft = parseFloat(token.style.left);
-      let initialTop = parseFloat(token.style.top);
-      let hasMoved = false;
+    function startDraggingToken(e, token){
+      let startX=e.clientX, startY=e.clientY;
+      let initialLeft=parseFloat(token.style.left);
+      let initialTop=parseFloat(token.style.top);
+      let moved=false;
 
-      function onMove(me) {
-        hasMoved = true;
-        let dx = (me.clientX - startX) / scale;
-        let dy = (me.clientY - startY) / scale;
-        let newX = initialLeft + dx;
-        let newY = initialTop + dy;
-
-        if (gridLayer.style.display !== 'none') {
-          newX = Math.round(newX / 50) * 50;
-          newY = Math.round(newY / 50) * 50;
+      function onMove(me){
+        moved=true;
+        let dx=(me.clientX-startX)/scale;
+        let dy=(me.clientY-startY)/scale;
+        let newX=initialLeft+dx;
+        let newY=initialTop+dy;
+        if (gridLayer.style.display !== 'none'){
+          newX=Math.round(newX/50)*50;
+          newY=Math.round(newY/50)*50;
         }
-
-        token.style.left = newX + 'px';
-        token.style.top = newY + 'px';
+        token.style.left=newX+"px";
+        token.style.top=newY+"px";
       }
 
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+      function onUp(){
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        if (!moved) return;
 
-        if (!hasMoved) return;
+        const id=token.dataset.uuid;
+        const action={ type:"MOVE", id, x:token.style.left, y:token.style.top };
 
-        const id = token.dataset.uuid;
-        const x = token.style.left;
-        const y = token.style.top;
-
-        if (isHost) {
-          const action = { type: "MOVE", id, x, y };
-          applyAction(action, false);
-          broadcastACT(action);
-        } else {
-          sendREQ({ type: "MOVE", id, x, y });
-        }
+        if (isHost){ applyAction(action,false); broadcastACT(action); }
+        else sendREQ(action);
 
         updateSceneSizeEstimate();
       }
 
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
     }
 
-    function unlockEverything() {
-      if (!isHost) return;
-      document.querySelectorAll('.token.locked').forEach(t => {
-        const id = t.dataset.uuid;
-        const action = { type: "UPDATE_PROP", id, prop: "locked", value: "false" };
-        applyAction(action, false);
-        broadcastACT(action);
-      });
-      if (mapLocked) setMapLockLocal(false, true);
-      updateSceneSizeEstimate();
+    function moveTokenDOM(id,x,y){
+      const t=document.getElementById(`token-${id}`);
+      if (!t) return;
+      t.style.left=x; t.style.top=y;
     }
 
-    window.lockToken = (e) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      const id = token.dataset.uuid;
-      if (!isHost) return;
-
-      const action = { type: "UPDATE_PROP", id, prop: "locked", value: "true" };
-      applyAction(action, false);
-      broadcastACT(action);
-      updateSceneSizeEstimate();
-    };
-
-    window.zoomInnerToken = (e, delta) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      if (token.dataset.locked === "true") return;
-
-      let currentZoom = parseFloat(token.dataset.innerZoom || 1);
-      currentZoom = Math.max(0.2, Math.min(5, currentZoom + delta));
-
-      if (isHost) {
-        const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "innerZoom", value: currentZoom };
-        applyAction(action, false);
-        broadcastACT(action);
-      } else {
-        sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "innerZoom", value: currentZoom });
-      }
-      updateSceneSizeEstimate();
-    };
-
-    window.flipToken = (token) => {
-      if (!token || token.dataset.locked === "true") return;
-      const newVal = token.dataset.flipped === "false" ? "true" : "false";
-
-      if (isHost) {
-        const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "flipped", value: newVal };
-        applyAction(action, false);
-        broadcastACT(action);
-      } else {
-        sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "flipped", value: newVal });
-      }
-      updateSceneSizeEstimate();
-    };
-
-    window.rotateToken = (e, deg) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      if (!token || token.dataset.locked === "true") return;
-
-      const newVal = (parseInt(token.dataset.rotation) + deg) % 360;
-
-      if (isHost) {
-        const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "rotation", value: newVal };
-        applyAction(action, false);
-        broadcastACT(action);
-      } else {
-        sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "rotation", value: newVal });
-      }
-      updateSceneSizeEstimate();
-    };
-
-    window.deleteToken = (e) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
+    function updateTokenPropDOM(id, prop, value){
+      const token=document.getElementById(`token-${id}`);
       if (!token) return;
-      const id = token.dataset.uuid;
 
-      if (!isHost) return;
-      const action = { type: "REMOVE_TOKEN", id };
-      applyAction(action, false);
-      broadcastACT(action);
-      updateSceneSizeEstimate();
-    };
-
-    window.scaleToken = (e, deltaW) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      if (!token || token.dataset.locked === "true") return;
-
-      const w0 = parseInt(token.dataset.sizeW);
-      const h0 = parseInt(token.dataset.sizeH);
-      const ratio = h0 / w0;
-
-      let w = Math.max(40, Math.min(2500, w0 + deltaW));
-      let h = Math.max(40, Math.min(2500, Math.round(w * ratio)));
-
-      const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w, h } };
-
-      if (isHost) {
-        applyAction(action, false);
-        broadcastACT(action);
-      } else {
-        sendREQ(action);
+      if (prop==="locked"){
+        token.dataset.locked = String(value);
+        if (String(value)==="true"){
+          token.classList.add('locked');
+          token.style.pointerEvents="none";
+          token.classList.remove('selected');
+          if (selectedToken && selectedToken.dataset.uuid===id) selectedToken=null;
+        } else {
+          token.classList.remove('locked');
+          token.style.pointerEvents="auto";
+        }
+      } else if (prop==="innerZoom"){
+        token.dataset.innerZoom=value; updateImgTransform(token);
+      } else if (prop==="rotation"){
+        token.dataset.rotation=value; updateImgTransform(token);
+      } else if (prop==="flipped"){
+        token.dataset.flipped=value; updateImgTransform(token);
+      } else if (prop==="fitMode"){
+        token.dataset.fitMode=value; updateImgTransform(token);
+      } else if (prop==="size"){
+        token.style.width=value.w+"px";
+        token.style.height=value.h+"px";
+        token.dataset.sizeW=value.w;
+        token.dataset.sizeH=value.h;
+      } else if (prop==="layer"){
+        const newLayer = Number(value);
+        ensureLayerDefaults(newLayer);
+        token.dataset.layer = String(newLayer);
+        token.style.zIndex = String(computeTokenZIndex(newLayer));
+        const vis = !!layerState.visible[newLayer];
+        token.style.display = vis ? "" : "none";
       }
-      updateSceneSizeEstimate();
-    };
 
-    window.fitToken = (e) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      if (!token || token.dataset.locked === "true") return;
-
-      const id = token.dataset.uuid;
-      const act1 = { type: "UPDATE_PROP", id, prop: "innerZoom", value: 1 };
-      const act2 = { type: "UPDATE_PROP", id, prop: "fitMode", value: "contain" };
-
-      if (isHost) {
-        applyAction(act1, false); broadcastACT(act1);
-        applyAction(act2, false); broadcastACT(act2);
-      } else {
-        sendREQ(act1);
-        sendREQ(act2);
-      }
-    };
-
-    window.resetToken = (e) => {
-      e.stopPropagation();
-      const token = e.target.closest('.token');
-      if (!token || token.dataset.locked === "true") return;
-
-      const id = token.dataset.uuid;
-      const acts = [
-        { type: "UPDATE_PROP", id, prop: "innerZoom", value: 1 },
-        { type: "UPDATE_PROP", id, prop: "rotation", value: 0 },
-        { type: "UPDATE_PROP", id, prop: "flipped", value: "false" },
-        { type: "UPDATE_PROP", id, prop: "fitMode", value: "contain" }
-      ];
-
-      if (isHost) acts.forEach(a => { applyAction(a, false); broadcastACT(a); });
-      else acts.forEach(a => sendREQ(a));
-    };
-
-    function resizeTokenDirect(token, amount, emit) {
-      let w = parseInt(token.dataset.sizeW) + amount;
-      w = Math.max(40, Math.min(w, 2500));
-      let currentRatio = (parseInt(token.dataset.sizeH) / parseInt(token.dataset.sizeW));
-      let h = Math.max(40, Math.min(2500, Math.round(w * currentRatio)));
-
-      const id = token.dataset.uuid;
-      const action = { type: "UPDATE_PROP", id, prop: "size", value: { w: Math.round(w), h: Math.round(h) } };
-
-      if (emit) {
-        applyAction(action, false);
-        broadcastACT(action);
-      } else {
-        updateTokenPropDOM(id, "size", action.value);
-      }
       updateSceneSizeEstimate();
     }
 
-    // =============== Teclas ===============
-    window.addEventListener('keydown', (e) => {
+    function removeTokenLocal(id){
+      const t=document.getElementById(`token-${id}`);
+      if (t) t.remove();
+      if (selectedToken && selectedToken.dataset.uuid===id) selectedToken=null;
+    }
+
+    // ===== AÇÕES DE TOKEN (UI) =====
+    window.lockToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token');
+      if (!token) return;
+      if (!isHost) return;
+      const id=token.dataset.uuid;
+      const action={ type:"UPDATE_PROP", id, prop:"locked", value:"true" };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.deleteToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token');
+      if (!token) return;
+      if (!isHost) return;
+      const id=token.dataset.uuid;
+      const action={ type:"REMOVE_TOKEN", id };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.zoomInnerToken = (e, delta)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      let z=parseFloat(token.dataset.innerZoom||1);
+      z=Math.max(.2, Math.min(5, z+delta));
+
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"innerZoom", value:z };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.flipToken = (token)=>{
+      if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const newVal = token.dataset.flipped==="false" ? "true" : "false";
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"flipped", value:newVal };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.rotateToken = (e, deg)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const newVal = (parseInt(token.dataset.rotation||0)+deg)%360;
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"rotation", value:newVal };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.fitToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const id=token.dataset.uuid;
+      const a1={ type:"UPDATE_PROP", id, prop:"innerZoom", value:1 };
+      const a2={ type:"UPDATE_PROP", id, prop:"fitMode", value:"contain" };
+      if (isHost){ applyAction(a1,false); broadcastACT(a1); applyAction(a2,false); broadcastACT(a2); }
+      else { sendREQ(a1); sendREQ(a2); }
+    };
+
+    window.resetToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const id=token.dataset.uuid;
+      const acts=[
+        { type:"UPDATE_PROP", id, prop:"innerZoom", value:1 },
+        { type:"UPDATE_PROP", id, prop:"rotation", value:0 },
+        { type:"UPDATE_PROP", id, prop:"flipped", value:"false" },
+        { type:"UPDATE_PROP", id, prop:"fitMode", value:"contain" }
+      ];
+      if (isHost) acts.forEach(a=>{ applyAction(a,false); broadcastACT(a); });
+      else acts.forEach(a=>sendREQ(a));
+    };
+
+    window.scaleToken = (e, deltaW)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const w0=parseInt(token.dataset.sizeW), h0=parseInt(token.dataset.sizeH);
+      const ratio=h0/w0;
+      let w=Math.max(40, Math.min(2500, w0+deltaW));
+      let h=Math.max(40, Math.min(2500, Math.round(w*ratio)));
+
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w,h} };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.layerToken = (e, delta)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+
+      const cur = Number(token.dataset.layer||2);
+      const next = Math.max(1, cur + delta);
+      ensureLayerDefaults(next);
+
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"layer", value: next };
+      if (isHost){ applyAction(action,false); broadcastACT(action); rebuildLayersPanel(); applyLayerVisibilityToDOM(); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    // ===== Keyboard =====
+    window.addEventListener('keydown',(e)=>{
       if (!selectedToken) return;
-      if (selectedToken.dataset.locked === "true") return;
+      if (selectedToken.dataset.locked==="true") return;
+      if (layerState.locked[Number(selectedToken.dataset.layer||2)]) return;
 
-      if (e.key.toLowerCase() === 'f') flipToken(selectedToken);
-
-      if (e.key === 'Delete') {
+      if (e.key.toLowerCase()==='f') flipToken(selectedToken);
+      if (e.key==='Delete'){
         if (!isHost) return;
-        const id = selectedToken.dataset.uuid;
-        const action = { type: "REMOVE_TOKEN", id };
-        applyAction(action, false);
-        broadcastACT(action);
-        selectedToken = null;
+        const id=selectedToken.dataset.uuid;
+        const action={ type:"REMOVE_TOKEN", id };
+        applyAction(action,false); broadcastACT(action);
+        selectedToken=null;
         updateSceneSizeEstimate();
       }
     });
 
-    viewport.addEventListener('mousedown', (e) => {
-      if (e.target === viewport || e.target === canvas || e.target === gridLayer) {
+    viewport.addEventListener('mousedown',(e)=>{
+      if (e.target===viewport || e.target===canvas || e.target===gridLayer){
         if (selectedToken) selectedToken.classList.remove('selected');
-        selectedToken = null;
+        selectedToken=null;
       }
     });
 
-    // =============== Dados / Log (Host-only) ===============
-    function rollDice(faces) {
+    // ===== DADOS / LOG =====
+    function rollDice(faces){
       if (!isHost) return;
-      const res = Math.floor(Math.random() * faces) + 1;
-      const action = { type: "DICE", faces, result: res };
-      applyAction(action, false);
-      broadcastACT(action);
+      const res=Math.floor(Math.random()*faces)+1;
+      const action={ type:"DICE", faces, result:res };
+      applyAction(action,false); broadcastACT(action);
     }
-
-    function showDiceLog(faces, res) {
-      const entry = document.createElement('div');
-      entry.className = "dice-entry mb-2 border-l-2 border-gold pl-3 opacity-0 transform translate-x-4 transition-all duration-300";
-      entry.innerHTML = `<span class="opacity-50 text-[10px] font-bold">D${faces}:</span> <b class="text-white text-lg">${res}</b>`;
+    function showDiceLog(faces,res){
+      const entry=document.createElement('div');
+      entry.className="dice-entry mb-2 border-l-2 border-gold pl-3 opacity-0 transform translate-x-4 transition-all duration-300";
+      entry.innerHTML=`<span class="opacity-50 text-[10px] font-bold">D${faces}:</span> <b class="text-white text-lg">${res}</b>`;
       diceLogEntries.prepend(entry);
-      setTimeout(() => { entry.classList.remove('opacity-0', 'translate-x-4'); }, 10);
+      setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
     }
 
-    // =============== Clear (Host-only) ===============
-    function clearTable(emit = true) {
-      if (!isHost) return;
-      if (emit && !confirm("Deseja limpar todos os tokens e o mapa?")) return;
-
-      const action = { type: "CLEAR" };
-      applyAction(action, false);
-      broadcastACT(action);
-      updateSceneSizeEstimate();
+    // ===== IMPORT =====
+    function isImageUrl(url){
+      return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
     }
 
-    function clearTableLocal() {
-      document.querySelectorAll('.token').forEach(t => t.remove());
-      mapContainer.innerHTML = "";
-      document.querySelectorAll('.dice-entry').forEach(l => l.remove());
-      selectedToken = null;
-      mapLocked = false;
-      mapContainer.classList.remove('locked');
-    }
+    function importFromUrl(inputId, type){
+      if (!isHost) return alert("Apenas o Host importa.");
+      const url=document.getElementById(inputId).value.trim();
+      if (!url) return;
 
-    // ===============================
-    // CENAS (SAVE/LOAD por ARQUIVO) + EMBUTIR + COMPRESSÃO + ESTIMATIVA
-    // ===============================
-    function byteLengthOfString(str) { return new Blob([str]).size; }
-
-    function prettyBytes(bytes) {
-      const units = ["B", "KB", "MB", "GB"];
-      let i = 0;
-      let num = bytes;
-      while (num >= 1024 && i < units.length - 1) { num /= 1024; i++; }
-      return `${num.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-    }
-
-    function blobToDataURL(blob) {
-      return new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = reject;
-        r.readAsDataURL(blob);
-      });
-    }
-
-    async function tryFetchAsBlob(url) {
-      try {
-        const resp = await fetch(url, { mode: "cors" });
-        if (!resp.ok) throw new Error("HTTP " + resp.status);
-        return await resp.blob();
-      } catch {
-        return null;
-      }
-    }
-
-    async function tryFetchAsDataURL(url) {
-      const blob = await tryFetchAsBlob(url);
-      if (!blob) return null;
-      if (!blob.type.startsWith("image/")) return null;
-      return await blobToDataURL(blob);
-    }
-
-    async function compressBlobToWebP(blob, maxDim, quality) {
-      try {
-        const bmp = await createImageBitmap(blob);
-        const w = bmp.width, h = bmp.height;
-
-        const scale = Math.min(1, maxDim / Math.max(w, h));
-        const nw = Math.max(1, Math.round(w * scale));
-        const nh = Math.max(1, Math.round(h * scale));
-
-        const c = document.createElement("canvas");
-        c.width = nw;
-        c.height = nh;
-        const ctx = c.getContext("2d", { alpha: true });
-        ctx.drawImage(bmp, 0, 0, nw, nh);
-
-        const outBlob = await new Promise((resolve) => c.toBlob(resolve, "image/webp", quality));
-        if (!outBlob) return null;
-        return await blobToDataURL(outBlob);
-      } catch {
-        return null;
-      }
-    }
-
-    async function compressDataURLToWebP(dataUrl, maxDim, quality) {
-      try {
-        const resp = await fetch(dataUrl);
-        const blob = await resp.blob();
-        if (!blob.type.startsWith("image/")) return null;
-        return await compressBlobToWebP(blob, maxDim, quality);
-      } catch {
-        return null;
-      }
-    }
-
-    async function compressImageSrcIfPossible(src, maxDim, quality) {
-      if (typeof src === "string" && src.startsWith("http")) {
-        const blob = await tryFetchAsBlob(src);
-        if (!blob || !blob.type.startsWith("image/")) return src;
-        const webp = await compressBlobToWebP(blob, maxDim, quality);
-        return webp || src;
-      }
-      if (typeof src === "string" && src.startsWith("data:image")) {
-        const webp = await compressDataURLToWebP(src, maxDim, quality);
-        return webp || src;
-      }
-      return src;
-    }
-
-    function estimatePayloadSizeBytes(payload) {
-      try { return byteLengthOfString(JSON.stringify(payload)); }
-      catch { return 0; }
-    }
-
-    function updateQualityLabel() {
-      const q = document.getElementById("quality");
-      const label = document.getElementById("quality-label");
-      if (q && label) label.textContent = `Q ${Number(q.value).toFixed(2)}`;
-    }
-
-    function updateSceneSizeEstimate() {
-      if (!isHost) return;
-      const payload = {
-        version: 3,
-        savedAt: new Date().toISOString(),
-        mapSrc: state.mapSrc || null,
-        mapLocked: !!state.mapLocked,
-        tokens: state.tokens || {}
-      };
-      const bytes = estimatePayloadSizeBytes(payload);
-      const el = document.getElementById("scene-size");
-      if (el) el.textContent = `~ ${prettyBytes(bytes)}`;
-    }
-
-    function initSceneUIHooks() {
-      const q = document.getElementById("quality");
-      const md = document.getElementById("max-dim");
-      const ci = document.getElementById("compress-images");
-      const er = document.getElementById("embed-remote");
-
-      if (q) q.addEventListener("input", () => { updateQualityLabel(); });
-      if (q) q.addEventListener("change", () => { updateSceneSizeEstimate(); });
-      if (md) md.addEventListener("change", () => { updateSceneSizeEstimate(); });
-      if (ci) ci.addEventListener("change", () => { updateSceneSizeEstimate(); });
-      if (er) er.addEventListener("change", () => { updateSceneSizeEstimate(); });
-
-      updateQualityLabel();
-      updateSceneSizeEstimate();
-    }
-
-    async function buildScenePayloadSelfContained() {
-      if (!isHost) return null;
-
-      const embedRemote = !!document.getElementById("embed-remote")?.checked;
-      const compress = !!document.getElementById("compress-images")?.checked;
-      const maxDim = parseInt(document.getElementById("max-dim")?.value || "2048", 10);
-      const quality = parseFloat(document.getElementById("quality")?.value || "0.75");
-
-      const payload = {
-        version: 3,
-        savedAt: new Date().toISOString(),
-        mapSrc: state.mapSrc || null,
-        mapLocked: !!state.mapLocked,
-        tokens: JSON.parse(JSON.stringify(state.tokens || {}))
-      };
-
-      // MAPA
-      if (payload.mapSrc && typeof payload.mapSrc === "string") {
-        if (embedRemote && payload.mapSrc.startsWith("http")) {
-          const dataUrl = await tryFetchAsDataURL(payload.mapSrc);
-          if (dataUrl) payload.mapSrc = dataUrl;
-        }
-        if (compress && (payload.mapSrc.startsWith("data:image") || payload.mapSrc.startsWith("http"))) {
-          payload.mapSrc = await compressImageSrcIfPossible(payload.mapSrc, maxDim, quality);
-        }
-      }
-
-      // TOKENS (compress só imagens)
-      const ids = Object.keys(payload.tokens || {});
-      for (const id of ids) {
-        const t = payload.tokens[id];
-        if (!t || !t.src) continue;
-
-        if (embedRemote && typeof t.src === "string" && t.src.startsWith("http")) {
-          const dataUrl = await tryFetchAsDataURL(t.src);
-          if (dataUrl) t.src = dataUrl;
-        }
-
-        if (compress && t.type === "image") {
-          t.src = await compressImageSrcIfPossible(t.src, maxDim, quality);
-        }
-      }
-
-      return payload;
-    }
-
-    function hostLoadScenePayload(payload) {
-      if (!isHost) return;
-
-      if (!payload || typeof payload !== "object") {
-        alert("Arquivo de cena inválido.");
+      if (type==="map"){
+        if (!isImageUrl(url)) return alert("Mapa precisa ser imagem direta.");
+        applyMapLocal(url,true);
+        addToLibrary("maps", url);
+        document.getElementById(inputId).value="";
+        updateSceneSizeEstimate();
         return;
       }
 
-      const tokens = payload.tokens && typeof payload.tokens === "object" ? payload.tokens : {};
-      const mapSrc = payload.mapSrc || null;
-      const mapLockedVal = !!payload.mapLocked;
+      if (!isImageUrl(url)) return alert("Tokens/Assets precisam ser imagens diretas.");
 
-      // 1) Limpa
-      const clearAction = { type: "CLEAR" };
-      applyAction(clearAction, false);
-      broadcastACT(clearAction);
-
-      // 2) Mapa
-      if (mapSrc) {
-        const mapAction = { type: "MAP_UPDATE", src: mapSrc };
-        applyAction(mapAction, false);
-        broadcastACT(mapAction);
+      if (type==="player"){
+        hostCreateToken(url,"image","player");
+        addToLibrary("players", url);
+      } else if (type==="asset"){
+        hostCreateToken(url,"image","asset");
+        addToLibrary("assets", url);
       }
-
-      // 3) Trava do mapa
-      const mapLockAction = { type: "MAP_LOCK", locked: mapLockedVal };
-      applyAction(mapLockAction, false);
-      broadcastACT(mapLockAction);
-
-      // 4) Tokens
-      Object.keys(tokens).forEach((id) => {
-        const t = tokens[id];
-        if (!t || !t.src || !t.type) return;
-
-        const props = {
-          x: t.x ?? "0px",
-          y: t.y ?? "0px",
-          w: t.w ?? 140,
-          h: t.h ?? 140,
-          rotation: t.rotation ?? 0,
-          flipped: t.flipped ?? "false",
-          innerZoom: t.innerZoom ?? 1,
-          locked: t.locked ?? "false",
-          fitMode: t.fitMode ?? "contain",
-          portrait: t.portrait ?? "false"
-        };
-
-        const createAction = {
-          type: "CREATE_TOKEN",
-          id,
-          src: t.src,
-          contentType: t.type,
-          props
-        };
-        applyAction(createAction, false);
-        broadcastACT(createAction);
-      });
-
-      showNotification("Cena carregada!");
+      document.getElementById(inputId).value="";
+      rebuildLayersPanel();
+      applyLayerVisibilityToDOM();
       updateSceneSizeEstimate();
     }
 
-    async function saveSceneToFile() {
-      if (!isHost) return alert("Apenas o Host pode salvar cenas.");
-
-      showNotification("Salvando (compactando)...");
-      const payload = await buildScenePayloadSelfContained();
-      if (!payload) return;
-
-      const json = JSON.stringify(payload);
-      const blob = new Blob([json], { type: "application/json" });
-
-      const a = document.createElement("a");
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      a.href = URL.createObjectURL(blob);
-      a.download = `cena-${ts}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      showNotification(`Cena salva (${prettyBytes(blob.size)})!`);
-      updateSceneSizeEstimate();
-    }
-
-    function loadSceneFromFile(event) {
-      if (!isHost) return alert("Apenas o Host pode carregar cenas.");
-      const file = event.target.files?.[0];
+    function importAsset(event, type){
+      if (!isHost) return alert("Apenas o Host importa.");
+      const file=event.target.files?.[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const payload = JSON.parse(String(reader.result || "{}"));
-          hostLoadScenePayload(payload);
-        } catch {
-          alert("JSON inválido.");
+      const reader=new FileReader();
+      reader.onload=(e)=>{
+        const dataUrl=e.target.result;
+
+        if (type==="map"){
+          applyMapLocal(dataUrl,true);
+          addToLibrary("maps", dataUrl, "mapa-local");
+        } else if (type==="player"){
+          hostCreateToken(dataUrl,"image","player");
+          addToLibrary("players", dataUrl, "player-local");
+        } else if (type==="asset"){
+          hostCreateToken(dataUrl,"image","asset");
+          addToLibrary("assets", dataUrl, "asset-local");
         }
-        event.target.value = "";
+
+        rebuildLayersPanel();
+        applyLayerVisibilityToDOM();
+        updateSceneSizeEstimate();
       };
-      reader.readAsText(file);
+      reader.readAsDataURL(file);
     }
 
-    // ===============================
-    // BIBLIOTECA / PERFIL (profile.json) - só imagens
-    // ===============================
-    function toggleLibrary() {
+    // ===== BIBLIOTECA =====
+    function toggleLibrary(){
       if (!isHost) return alert("Apenas o Host usa Biblioteca/Perfil.");
       libraryPanel.classList.toggle('show');
       renderLibrary();
     }
 
-    function setLibraryTab(tab) {
-      libraryTab = tab;
-      document.getElementById('tab-maps').classList.toggle('active', tab === 'maps');
-      document.getElementById('tab-tokens').classList.toggle('active', tab === 'tokens');
+    function setLibraryTab(tab){
+      libraryTab=tab;
+      document.getElementById('tab-maps').classList.toggle('active', tab==='maps');
+      document.getElementById('tab-players').classList.toggle('active', tab==='players');
+      document.getElementById('tab-assets').classList.toggle('active', tab==='assets');
       renderLibrary();
     }
 
-    function normalizeNameFromSrc(src, fallback) {
+    function normalizeNameFromSrc(src, fallback){
       if (!src) return fallback || "asset";
-      if (src.startsWith("data:image")) return fallback || "imagem-local";
-      try {
-        const u = new URL(src);
-        const last = u.pathname.split("/").pop() || fallback || "imagem";
-        return decodeURIComponent(last).slice(0, 40);
-      } catch {
+      if (src.startsWith("data:image")) return fallback || "local";
+      try{
+        const u=new URL(src);
+        const last=u.pathname.split("/").pop() || fallback || "img";
+        return decodeURIComponent(last).slice(0,40);
+      }catch{
         return fallback || "asset";
       }
     }
 
-    function addToLibrary(kind, src, name = null, contentType = "image") {
+    function addToLibrary(kind, src, name=null){
       if (!isHost) return;
       if (!src) return;
+      const list = library[kind];
+      if (!Array.isArray(list)) return;
+      if (list.some(x=>x.src===src)) return;
 
-      const list = kind === "maps" ? library.maps : library.tokens;
-      if (list.some(x => x.src === src)) return;
-
-      const item = {
+      list.unshift({
         id: generateUUID(),
-        name: name || normalizeNameFromSrc(src, kind === "maps" ? "mapa" : "token"),
-        src,
-        contentType
-      };
-
-      list.unshift(item);
+        name: name || normalizeNameFromSrc(src, kind==="maps"?"mapa":kind),
+        src
+      });
       renderLibrary();
     }
 
-    function renderLibrary() {
+    function renderLibrary(){
       if (!isHost) return;
-      const term = (librarySearch?.value || "").toLowerCase().trim();
+      const term=(librarySearch.value||"").toLowerCase().trim();
+      const list = library[libraryTab] || [];
+      const filtered = term ? list.filter(x=>(x.name||"").toLowerCase().includes(term)) : list;
 
-      const list = libraryTab === "maps" ? library.maps : library.tokens;
-      const filtered = term ? list.filter(x => (x.name || "").toLowerCase().includes(term)) : list;
+      libraryGrid.innerHTML="";
+      filtered.forEach(item=>{
+        const card=document.createElement('div');
+        card.className="asset-card";
 
-      libraryGrid.innerHTML = "";
-
-      filtered.forEach(item => {
-        const card = document.createElement("div");
-        card.className = "asset-card";
-
-        const thumb = document.createElement("div");
-        thumb.className = "asset-thumb";
-
-        const img = document.createElement("img");
-        img.src = item.src;
-        img.alt = item.name || "asset";
+        const thumb=document.createElement('div');
+        thumb.className="asset-thumb";
+        const img=document.createElement('img');
+        img.src=item.src;
+        img.alt=item.name||"asset";
         thumb.appendChild(img);
 
-        const title = document.createElement("div");
-        title.style.fontSize = "10px";
-        title.style.opacity = ".85";
-        title.style.whiteSpace = "nowrap";
-        title.style.overflow = "hidden";
-        title.style.textOverflow = "ellipsis";
-        title.textContent = item.name || "asset";
+        const title=document.createElement('div');
+        title.style.fontSize="10px";
+        title.style.opacity=".85";
+        title.style.whiteSpace="nowrap";
+        title.style.overflow="hidden";
+        title.style.textOverflow="ellipsis";
+        title.textContent=item.name||"asset";
 
-        const actions = document.createElement("div");
-        actions.className = "asset-actions";
+        const actions=document.createElement('div');
+        actions.className="asset-actions";
 
-        if (libraryTab === "maps") {
-          const btnUse = document.createElement("button");
-          btnUse.textContent = "Usar";
-          btnUse.onclick = () => applyMapLocal(item.src, true);
-          actions.appendChild(btnUse);
-        } else {
-          const btnAdd = document.createElement("button");
-          btnAdd.textContent = "Add";
-          // Da biblioteca, entra em modo portrait-friendly por padrão
-          btnAdd.onclick = () => hostCreateToken(item.src, "image", true);
-          actions.appendChild(btnAdd);
-        }
+        const use=document.createElement('button');
+        use.textContent = (libraryTab==="maps") ? "Usar" : "Add";
+        use.onclick=()=>{
+          if (libraryTab==="maps"){
+            applyMapLocal(item.src,true);
+          } else if (libraryTab==="players"){
+            hostCreateToken(item.src,"image","player");
+          } else if (libraryTab==="assets"){
+            hostCreateToken(item.src,"image","asset");
+          }
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          updateSceneSizeEstimate();
+        };
 
-        const btnDel = document.createElement("button");
-        btnDel.textContent = "Remover";
-        btnDel.onclick = () => removeFromLibrary(item.id);
-        actions.appendChild(btnDel);
+        const del=document.createElement('button');
+        del.textContent="Remover";
+        del.onclick=()=>removeFromLibrary(item.id);
+
+        actions.appendChild(use);
+        actions.appendChild(del);
 
         card.appendChild(thumb);
         card.appendChild(title);
@@ -2131,78 +1500,664 @@
         libraryGrid.appendChild(card);
       });
 
-      const count = (libraryTab === "maps" ? library.maps.length : library.tokens.length);
-      if (libraryCount) libraryCount.textContent = `${count} itens`;
+      const count=(library[libraryTab]||[]).length;
+      libraryCount.textContent = `${count} itens`;
     }
 
-    function removeFromLibrary(id) {
+    function removeFromLibrary(id){
       if (!isHost) return;
-      library.maps = library.maps.filter(x => x.id !== id);
-      library.tokens = library.tokens.filter(x => x.id !== id);
+      for (const k of ["maps","players","assets"]){
+        library[k] = (library[k]||[]).filter(x=>x.id!==id);
+      }
       renderLibrary();
     }
 
-    function clearLibrary() {
+    function clearLibrary(){
       if (!isHost) return;
       if (!confirm("Limpar toda a Biblioteca?")) return;
-      library.maps = [];
-      library.tokens = [];
+      library.maps=[]; library.players=[]; library.assets=[];
       renderLibrary();
     }
 
-    function saveProfileToFile() {
+    function saveProfileToFile(){
       if (!isHost) return;
+      const payload={ version:2, savedAt:new Date().toISOString(), library };
+      const json=JSON.stringify(payload);
+      const blob=new Blob([json],{type:"application/json"});
 
-      const payload = {
-        version: 1,
-        savedAt: new Date().toISOString(),
-        library
-      };
-
-      const json = JSON.stringify(payload);
-      const blob = new Blob([json], { type: "application/json" });
-
-      const a = document.createElement("a");
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      a.href = URL.createObjectURL(blob);
-      a.download = `perfil-${ts}.json`;
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`perfil-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
       showNotification("Perfil salvo!");
     }
 
-    function loadProfileFromFile(event) {
+    function loadProfileFromFile(event){
       if (!isHost) return;
-      const file = event.target.files?.[0];
+      const file=event.target.files?.[0];
       if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const payload = JSON.parse(String(reader.result || "{}"));
-          if (!payload?.library) throw new Error("Sem library");
-
-          library.maps = Array.isArray(payload.library.maps) ? payload.library.maps : [];
-          library.tokens = Array.isArray(payload.library.tokens) ? payload.library.tokens : [];
-
+      const r=new FileReader();
+      r.onload=()=>{
+        try{
+          const payload=JSON.parse(String(r.result||"{}"));
+          if (!payload?.library) throw 0;
+          library.maps=Array.isArray(payload.library.maps)?payload.library.maps:[];
+          library.players=Array.isArray(payload.library.players)?payload.library.players:[];
+          library.assets=Array.isArray(payload.library.assets)?payload.library.assets:[];
           showNotification("Perfil carregado!");
           renderLibrary();
-        } catch {
+        }catch{
           alert("perfil.json inválido.");
         }
-        event.target.value = "";
+        event.target.value="";
       };
-      reader.readAsText(file);
+      r.readAsText(file);
     }
 
-    // =============== Start ===============
-    window.addEventListener('contextmenu', (e) => e.preventDefault());
+    // ===== CENAS (SAVE/LOAD) =====
+    function openScenePanel(){
+      if (!isHost) return alert("Apenas o Host.");
+      scenePanel.classList.toggle('show');
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
 
+    function byteLengthOfString(str){ return new Blob([str]).size; }
+    function prettyBytes(bytes){
+      const units=["B","KB","MB","GB"];
+      let i=0,num=bytes;
+      while(num>=1024 && i<units.length-1){ num/=1024; i++; }
+      return `${num.toFixed(i===0?0:2)} ${units[i]}`;
+    }
+
+    function updateQualityLabel(){
+      const q=document.getElementById('quality');
+      const label=document.getElementById('quality-label');
+      if (q && label) label.textContent=`Q ${Number(q.value).toFixed(2)}`;
+    }
+
+    function estimatePayloadSizeBytes(payload){
+      try{ return byteLengthOfString(JSON.stringify(payload)); }
+      catch{ return 0; }
+    }
+
+    function updateSceneSizeEstimate(){
+      if (!isHost) return;
+      const payload={
+        version:4,
+        savedAt:new Date().toISOString(),
+        map: state.map,
+        tokens: state.tokens,
+        layerState
+      };
+      const bytes=estimatePayloadSizeBytes(payload);
+      document.getElementById('scene-size').textContent = `~ ${prettyBytes(bytes)}`;
+    }
+
+    function blobToDataURL(blob){
+      return new Promise((resolve,reject)=>{
+        const r=new FileReader();
+        r.onload=()=>resolve(r.result);
+        r.onerror=reject;
+        r.readAsDataURL(blob);
+      });
+    }
+
+    async function tryFetchAsBlob(url){
+      try{
+        const resp=await fetch(url,{mode:"cors"});
+        if(!resp.ok) throw 0;
+        return await resp.blob();
+      }catch{ return null; }
+    }
+
+    async function tryFetchAsDataURL(url){
+      const blob=await tryFetchAsBlob(url);
+      if(!blob) return null;
+      if(!blob.type.startsWith("image/")) return null;
+      return await blobToDataURL(blob);
+    }
+
+    async function compressBlobToWebP(blob, maxDim, quality){
+      try{
+        const bmp=await createImageBitmap(blob);
+        const w=bmp.width,h=bmp.height;
+        const s=Math.min(1, maxDim/Math.max(w,h));
+        const nw=Math.max(1,Math.round(w*s));
+        const nh=Math.max(1,Math.round(h*s));
+        const c=document.createElement('canvas');
+        c.width=nw; c.height=nh;
+        const ctx=c.getContext('2d',{alpha:true});
+        ctx.drawImage(bmp,0,0,nw,nh);
+        const outBlob=await new Promise(res=>c.toBlob(res,"image/webp",quality));
+        if(!outBlob) return null;
+        return await blobToDataURL(outBlob);
+      }catch{ return null; }
+    }
+
+    async function compressDataURLToWebP(dataUrl, maxDim, quality){
+      try{
+        const resp=await fetch(dataUrl);
+        const blob=await resp.blob();
+        if(!blob.type.startsWith("image/")) return null;
+        return await compressBlobToWebP(blob,maxDim,quality);
+      }catch{ return null; }
+    }
+
+    async function compressImageSrcIfPossible(src, maxDim, quality){
+      if (typeof src==="string" && src.startsWith("http")){
+        const blob=await tryFetchAsBlob(src);
+        if(!blob || !blob.type.startsWith("image/")) return src;
+        const webp=await compressBlobToWebP(blob,maxDim,quality);
+        return webp || src;
+      }
+      if (typeof src==="string" && src.startsWith("data:image")){
+        const webp=await compressDataURLToWebP(src,maxDim,quality);
+        return webp || src;
+      }
+      return src;
+    }
+
+    async function buildScenePayloadSelfContained(){
+      if (!isHost) return null;
+
+      const embedRemote = !!document.getElementById('embed-remote')?.checked;
+      const compress = !!document.getElementById('compress-images')?.checked;
+      const maxDim = parseInt(document.getElementById('max-dim')?.value || "2048", 10);
+      const quality = parseFloat(document.getElementById('quality')?.value || "0.75");
+
+      const payload = {
+        version:4,
+        savedAt:new Date().toISOString(),
+        map: JSON.parse(JSON.stringify(state.map)),
+        tokens: JSON.parse(JSON.stringify(state.tokens)),
+        layerState: JSON.parse(JSON.stringify(layerState))
+      };
+
+      // map src
+      if (payload.map?.src){
+        if (embedRemote && payload.map.src.startsWith("http")){
+          const du = await tryFetchAsDataURL(payload.map.src);
+          if (du) payload.map.src = du;
+        }
+        if (compress && (payload.map.src.startsWith("http") || payload.map.src.startsWith("data:image"))){
+          payload.map.src = await compressImageSrcIfPossible(payload.map.src, maxDim, quality);
+        }
+      }
+
+      // tokens
+      for (const id of Object.keys(payload.tokens)){
+        const t = payload.tokens[id];
+        if (!t?.src) continue;
+
+        if (embedRemote && typeof t.src==="string" && t.src.startsWith("http")){
+          const du = await tryFetchAsDataURL(t.src);
+          if (du) t.src = du;
+        }
+        if (compress && t.type==="image"){
+          t.src = await compressImageSrcIfPossible(t.src, maxDim, quality);
+        }
+      }
+
+      return payload;
+    }
+
+    async function saveSceneToFile(){
+      if (!isHost) return alert("Apenas o Host.");
+      showNotification("Salvando...");
+      const payload = await buildScenePayloadSelfContained();
+      if (!payload) return;
+
+      const json=JSON.stringify(payload);
+      const blob=new Blob([json],{type:"application/json"});
+
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`cena-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+
+      showNotification(`Cena salva (${prettyBytes(blob.size)})!`);
+      updateSceneSizeEstimate();
+    }
+
+    function hostLoadScenePayload(payload){
+      if (!isHost) return;
+      if (!payload || typeof payload!=="object") return alert("Cena inválida.");
+
+      // limpar
+      const clear = { type:"CLEAR" };
+      applyAction(clear,false); broadcastACT(clear);
+
+      // layer state
+      if (payload.layerState){
+        // substitui
+        layerState.visible = payload.layerState.visible || {};
+        layerState.locked = payload.layerState.locked || {};
+      }
+
+      // map
+      const map = payload.map || {src:null,locked:false,x:0,y:0};
+      if (map.src){
+        const a = { type:"MAP_UPDATE", src: map.src };
+        applyAction(a,false); broadcastACT(a);
+      }
+      const lockA = { type:"MAP_LOCK", locked: !!map.locked };
+      applyAction(lockA,false); broadcastACT(lockA);
+
+      const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
+      applyAction(moveA,false); broadcastACT(moveA);
+
+      // tokens
+      const tokens = payload.tokens || {};
+      for (const id of Object.keys(tokens)){
+        const t = tokens[id];
+        if (!t?.src || !t.type) continue;
+        ensureLayerDefaults(Number(t.layer||2));
+        const create = {
+          type:"CREATE_TOKEN",
+          id,
+          src: t.src,
+          contentType: t.type,
+          props: {
+            kind: t.kind || "asset",
+            layer: Number(t.layer||2),
+            x: t.x, y: t.y, w: t.w, h: t.h,
+            rotation: t.rotation, flipped: t.flipped,
+            innerZoom: t.innerZoom, locked: t.locked,
+            fitMode: t.fitMode || "contain"
+          }
+        };
+        applyAction(create,false); broadcastACT(create);
+      }
+
+      applyLayerVisibilityToDOM();
+      rebuildLayersPanel();
+      showNotification("Cena carregada!");
+      updateSceneSizeEstimate();
+    }
+
+    function loadSceneFromFile(event){
+      if (!isHost) return;
+      const file=event.target.files?.[0];
+      if (!file) return;
+      const r=new FileReader();
+      r.onload=()=>{
+        try{
+          const payload=JSON.parse(String(r.result||"{}"));
+          hostLoadScenePayload(payload);
+        }catch{ alert("JSON inválido."); }
+        event.target.value="";
+      };
+      r.readAsText(file);
+    }
+
+    function initSceneUIHooks(){
+      const q=document.getElementById('quality');
+      const md=document.getElementById('max-dim');
+      const ci=document.getElementById('compress-images');
+      const er=document.getElementById('embed-remote');
+      q?.addEventListener('input', updateQualityLabel);
+      q?.addEventListener('change', updateSceneSizeEstimate);
+      md?.addEventListener('change', updateSceneSizeEstimate);
+      ci?.addEventListener('change', updateSceneSizeEstimate);
+      er?.addEventListener('change', updateSceneSizeEstimate);
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
+
+    // ===== CLEAR / UNLOCK =====
+    function clearTable(emit=true){
+      if (!isHost) return;
+      if (emit && !confirm("Deseja limpar todos os tokens e o mapa?")) return;
+      const action={ type:"CLEAR" };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+    }
+
+    function unlockEverything(){
+      if (!isHost) return;
+      document.querySelectorAll('.token.locked').forEach(t=>{
+        const id=t.dataset.uuid;
+        const action={ type:"UPDATE_PROP", id, prop:"locked", value:"false" };
+        applyAction(action,false); broadcastACT(action);
+      });
+      if (state.map.locked) setMapLockLocal(false,true);
+      updateSceneSizeEstimate();
+    }
+
+    // ===== PROTOCOLO REDE (Host autoritativo) =====
+    function sendREQ(action){
+      if (isHost){
+        applyHostAuthorizedAction(action,{sender:myId});
+        return;
+      }
+      if (hostConnection?.open){
+        hostConnection.send({kind:"REQ", sender:myId, action});
+      }
+    }
+
+    function broadcastACT(action, meta={}){
+      if (!isHost) return;
+      const msg={kind:"ACT", sender:myId, action, meta};
+      connections.forEach(c=>{ if(c.open) c.send(msg); });
+    }
+
+    function sendSYNC(conn){
+      if (!isHost) return;
+      conn.send({kind:"SYNC", sender:myId, state, layerState});
+    }
+
+    function handleNetworkData(data, connPeerId=null){
+      if (!data?.kind) return;
+
+      if (data.kind==="SYNC"){
+        applyFullSync(data.state, data.layerState);
+        return;
+      }
+      if (data.kind==="ACT"){
+        applyAction(data.action,true);
+        return;
+      }
+      if (data.kind==="REQ"){
+        if (!isHost) return;
+        const sender=data.sender || connPeerId || "unknown";
+        applyHostAuthorizedAction(data.action,{sender});
+      }
+    }
+
+    // ===== VALIDAÇÃO (player) =====
+    function validateClientAction(action){
+      if (!action?.type) return {ok:false,reason:"Ação inválida"};
+
+      // allow: MOVE, UPDATE_PROP (somente tokens destravados e layer não trancada e visível)
+      const allowed = new Set(["MOVE","UPDATE_PROP"]);
+      if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
+
+      const id=action.id;
+      if (!id || !state.tokens[id]) return {ok:false,reason:"Token inexistente"};
+
+      const tok=state.tokens[id];
+      const layer = Number(tok.layer||2);
+      ensureLayerDefaults(layer);
+
+      if (!layerState.visible[layer]) return {ok:false,reason:"Layer oculta"};
+      if (layerState.locked[layer]) return {ok:false,reason:"Layer trancada"};
+      if (String(tok.locked)==="true") return {ok:false,reason:"Token travado"};
+
+      if (action.type==="UPDATE_PROP"){
+        const allowedProps = new Set(["rotation","flipped","innerZoom","size","fitMode","layer"]);
+        if (!allowedProps.has(action.prop)) return {ok:false,reason:"Prop não permitida"};
+
+        if (action.prop==="innerZoom"){
+          const z=Number(action.value);
+          if (!Number.isFinite(z) || z<.2 || z>5) return {ok:false,reason:"Zoom inválido"};
+        }
+        if (action.prop==="size"){
+          const w=Number(action.value?.w), h=Number(action.value?.h);
+          if(!Number.isFinite(w)||!Number.isFinite(h)) return {ok:false,reason:"Size inválido"};
+          if(w<40||w>2500||h<40||h>2500) return {ok:false,reason:"Size fora limite"};
+        }
+        if (action.prop==="fitMode"){
+          const m=String(action.value);
+          if(!["contain","cover"].includes(m)) return {ok:false,reason:"fit inválido"};
+        }
+        if (action.prop==="layer"){
+          const l=Number(action.value);
+          if(!Number.isFinite(l)||l<1||l>50) return {ok:false,reason:"Layer inválida"};
+          // opcional: impedir player de trocar layer (se quiser)
+          // return {ok:false,reason:"Player não muda layer"};
+        }
+      }
+      return {ok:true};
+    }
+
+    function applyHostAuthorizedAction(action,{sender}){
+      const fromClient = sender && sender !== myId;
+      if (fromClient){
+        const v=validateClientAction(action);
+        if (!v.ok){ console.warn("REQ negada:", v.reason, action); return; }
+      }
+      applyAction(action,false);
+      broadcastACT(action,{approvedBy:myId, originalSender:sender});
+    }
+
+    // ===== APPLY ACTION =====
+    function applyAction(action, fromNetwork){
+      switch(action.type){
+        case "CLEAR":{
+          // limpa DOM
+          document.querySelectorAll('.token').forEach(t=>t.remove());
+          mapContainer.innerHTML="";
+          document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+          selectedToken=null;
+          stopMapInertia();
+          mapDragging=false;
+
+          // limpa estado
+          state.map={src:null,locked:false,x:0,y:0};
+          state.tokens={};
+
+          // layerState não zera (mantém preferências), mas pode se quiser:
+          // layerState.visible={}, layerState.locked={}
+          setMapLockLocal(false,false);
+          setMapOffset(0,0);
+
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          break;
+        }
+
+        case "MAP_UPDATE":{
+          state.map.src = action.src;
+          // ao atualizar mapa, mantém offsets atuais
+          applyMapLocal(action.src,false);
+          break;
+        }
+
+        case "MAP_LOCK":{
+          setMapLockLocal(!!action.locked,false);
+          break;
+        }
+
+        case "MAP_MOVE":{
+          const x=Number(action.x||0), y=Number(action.y||0);
+          setMapOffset(x,y);
+          break;
+        }
+
+        case "CREATE_TOKEN":{
+          const {id, src, contentType, props} = action;
+          addTokenLocal(src, contentType, id, props);
+          if (isHost) state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          else state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          break;
+        }
+
+        case "REMOVE_TOKEN":{
+          const {id}=action;
+          removeTokenLocal(id);
+          delete state.tokens[id];
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          break;
+        }
+
+        case "MOVE":{
+          const {id,x,y}=action;
+          moveTokenDOM(id,x,y);
+          if (state.tokens[id]){ state.tokens[id].x=x; state.tokens[id].y=y; }
+          break;
+        }
+
+        case "UPDATE_PROP":{
+          const {id,prop,value}=action;
+          updateTokenPropDOM(id,prop,value);
+          if (state.tokens[id]){
+            if (prop==="locked") state.tokens[id].locked=String(value);
+            if (prop==="innerZoom") state.tokens[id].innerZoom=value;
+            if (prop==="rotation") state.tokens[id].rotation=value;
+            if (prop==="flipped") state.tokens[id].flipped=value;
+            if (prop==="fitMode") state.tokens[id].fitMode=value;
+            if (prop==="size"){ state.tokens[id].w=value.w; state.tokens[id].h=value.h; }
+            if (prop==="layer"){
+              state.tokens[id].layer=Number(value);
+              ensureLayerDefaults(Number(value));
+            }
+          }
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          break;
+        }
+
+        case "DICE":{
+          showDiceLog(action.faces, action.result);
+          break;
+        }
+
+        case "LAYER_SET":{
+          const l=Number(action.layer);
+          ensureLayerDefaults(l);
+          if (action.prop==="visible") layerState.visible[l]=!!action.value;
+          if (action.prop==="locked") layerState.locked[l]=!!action.value;
+          applyLayerVisibilityToDOM();
+          rebuildLayersPanel();
+          break;
+        }
+      }
+      if (isHost) updateSceneSizeEstimate();
+    }
+
+    function applyFullSync(s, ls){
+      // limpa DOM
+      document.querySelectorAll('.token').forEach(t=>t.remove());
+      mapContainer.innerHTML="";
+      document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+      selectedToken=null;
+      stopMapInertia();
+
+      // aplica layerState
+      layerState.visible = ls?.visible || {};
+      layerState.locked = ls?.locked || {};
+
+      // aplica estado
+      if (s?.map){
+        state.map = JSON.parse(JSON.stringify(s.map));
+        if (state.map.src) applyMapLocal(state.map.src,false);
+        setMapLockLocal(!!state.map.locked,false);
+        setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
+      }
+
+      state.tokens = {};
+      const tokens = s?.tokens || {};
+      for (const id of Object.keys(tokens)){
+        const t=tokens[id];
+        ensureLayerDefaults(Number(t.layer||2));
+        addTokenLocal(t.src, t.type, id, t);
+        state.tokens[id]=JSON.parse(JSON.stringify(t));
+      }
+
+      applyLayerVisibilityToDOM();
+      rebuildLayersPanel();
+      updateSceneSizeEstimate();
+    }
+
+    // ===== PeerJS setup =====
+    function initNetwork(){
+      const urlParams=new URLSearchParams(window.location.search);
+      const roomID=urlParams.get('room');
+
+      peer=new Peer(null,{debug:2, config:PEER_ICE_CONFIG});
+
+      peer.on('open',(id)=>{
+        myId=id;
+
+        if (roomID){
+          isHost=false;
+          setRoleUI();
+          statusText.innerText="Conectando ao Host...";
+          tinyStatus.textContent="Conectando...";
+          tinyRoom.textContent=roomID;
+          connectToHost(roomID);
+        } else {
+          isHost=true;
+          setRoleUI();
+          statusText.innerText="Online (Host)";
+          tinyStatus.textContent="Online (Host)";
+          tinyRoom.textContent=id;
+          statusDot.classList.add('online');
+          toggleNetworkPanel();
+
+          peer.on('connection',(conn)=>{
+            connections.push(conn);
+            setupConnection(conn);
+            conn.on('open',()=>setTimeout(()=>sendSYNC(conn),200));
+            conn.on('close',()=>{connections=connections.filter(c=>c!==conn);});
+          });
+        }
+      });
+
+      peer.on('error',(err)=>{
+        console.error(err);
+        statusText.innerText="Erro Rede";
+        tinyStatus.textContent="Erro Rede";
+        statusDot.classList.remove('online');
+      });
+    }
+
+    function connectToHost(hostId){
+      hostConnection=peer.connect(hostId);
+      setupConnection(hostConnection);
+
+      hostConnection.on('open',()=>{
+        statusText.innerText="Conectado";
+        tinyStatus.textContent="Conectado";
+        statusDot.classList.add('online');
+      });
+
+      hostConnection.on('close',()=>{
+        statusText.innerText="Desconectado";
+        tinyStatus.textContent="Desconectado";
+        statusDot.classList.remove('online');
+        alert("O Host desconectou.");
+      });
+    }
+
+    function setupConnection(conn){
+      conn.on('data',(data)=>handleNetworkData(data, conn.peer));
+    }
+
+    // ===== Players / Assets: constraints =====
+    // (por enquanto o player só move o que está destravado e layer livre/visível; host manda tudo)
+
+    // ===== Map: Host também sync posição quando solta =====
+    // (já fazemos MAP_MOVE ao soltar e no final da inércia)
+
+    // ===== Scene UI hooks =====
+    function initUI(){
+      const q=document.getElementById('quality');
+      q?.addEventListener('input',updateQualityLabel);
+      q?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('max-dim')?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('compress-images')?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('embed-remote')?.addEventListener('change',updateSceneSizeEstimate);
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
+
+    // ===== Context menu off =====
+    window.addEventListener('contextmenu',(e)=>e.preventDefault());
+
+    // ===== Start =====
     initNetwork();
-    setTimeout(() => { initSceneUIHooks(); }, 0);
+    initUI();
   </script>
 </body>
 </html>
