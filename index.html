@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - P2P (Fog de Visão + Inspector grande + Layers dinâmicas)</title>
+  <title>Tabletop Luxury - P2P (Saves + Perfil + Fog por Elemento + Layers)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -51,17 +51,6 @@
       z-index:6;
     }
 
-    /* FOG (sobre tudo, mas abaixo do HUD) */
-    #fog-layer{
-      position:absolute; inset:0;
-      z-index:450; /* acima dos tokens (100+) */
-      pointer-events:none;
-      opacity:0;
-      transition:opacity .25s ease;
-    }
-    #fog-layer.on{opacity:1;}
-    /* A máscara real é aplicada via style.background no JS */
-
     /* TOKENS */
     .token{
       position:absolute;
@@ -70,10 +59,15 @@
       display:flex;align-items:center;justify-content:center;
       background:transparent;
       overflow:visible;
-      transition:filter .2s ease, outline .2s ease;
+      transition:filter .15s ease, outline .15s ease, opacity .15s ease;
     }
     .token.locked{cursor:default!important;pointer-events:none;}
-    .token.locked .token-controls,.token.locked .resize-handle{display:none!important;}
+    .token.hidden-by-fog{visibility:hidden !important; pointer-events:none !important;}
+    .token.selected:not(.locked){
+      filter:drop-shadow(0 0 15px var(--gold));
+      outline:2px dashed rgba(197,160,89,.6);
+      outline-offset:6px;
+    }
 
     .token-blocker{position:absolute;top:0;left:0;width:100%;height:100%;z-index:50;background:rgba(255,255,255,.001);}
     .token-content-wrapper{width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;pointer-events:none;}
@@ -81,13 +75,8 @@
     .token iframe,.token img{
       width:100%;height:100%;border:none;background:transparent;pointer-events:none;
       object-fit:contain;
-      transition:transform .2s ease-out;
-    }
-
-    .token.selected:not(.locked){
-      filter:drop-shadow(0 0 15px var(--gold));
-      outline:2px dashed rgba(197,160,89,.6);
-      outline-offset:6px;
+      transition:transform .15s ease-out;
+      image-rendering:auto;
     }
 
     .resize-handle{
@@ -97,32 +86,16 @@
     }
     .token.selected:not(.locked) .resize-handle{display:block;}
 
-    /* Controles flutuantes maiores (ainda existem, mas agora é “big”) */
-    .token-controls{
-      position:absolute;top:-78px;left:50%;transform:translateX(-50%);
-      display:none;background:var(--panel-bg);backdrop-filter:blur(12px);
-      border:1px solid rgba(197,160,89,.4);border-radius:999px;
-      padding:10px 14px;gap:12px;z-index:200;
-      box-shadow:0 4px 22px rgba(0,0,0,.55);
-      white-space:nowrap;
-    }
-    .token.selected:not(.locked) .token-controls{display:flex;align-items:center;}
-    .token-btn{
-      color:#fff;font-size:18px;cursor:pointer;opacity:.9;transition:all .2s;
-      display:flex;align-items:center;gap:6px;
-    }
-    .token-btn:hover{opacity:1;color:var(--gold);transform:scale(1.08);}
-
     /* HUD */
-    .hud-element{transition:opacity .4s ease, transform .4s ease;}
+    .hud-element{transition:opacity .35s ease, transform .35s ease;}
     .hud-hidden .hud-element{opacity:0!important;pointer-events:none!important;transform:translateY(10px);}
 
     .sidebar{
-      width:320px;background:var(--panel-bg);backdrop-filter:blur(15px);
+      width:360px;background:var(--panel-bg);backdrop-filter:blur(15px);
       height:100vh;position:fixed;left:0;top:0;z-index:1000;
       border-right:1px solid rgba(197,160,89,.2);
       transform:translateX(-100%);
-      transition:transform .4s cubic-bezier(.16,1,.3,1);
+      transition:transform .35s cubic-bezier(.16,1,.3,1);
     }
     .sidebar.open{transform:translateX(0);}
     .toggle-sidebar-btn{
@@ -141,7 +114,7 @@
 
     .btn-luxury{
       padding:10px 16px;border-radius:999px;font-size:12px;font-weight:700;
-      text-transform:uppercase;letter-spacing:1px;transition:all .25s;
+      text-transform:uppercase;letter-spacing:1px;transition:all .2s;
       border:1px solid transparent;color:#ccc;background:transparent;
     }
     .btn-luxury:hover,.btn-luxury.active{
@@ -166,7 +139,7 @@
 
     .url-field{
       background:rgba(0,0,0,.3);border:1px solid rgba(197,160,89,.2);color:#fff;
-      width:100%;font-size:12px;padding:10px;margin-bottom:10px;outline:none;border-radius:10px;
+      width:100%;font-size:12px;padding:10px;margin-bottom:10px;outline:none;border-radius:12px;
     }
     .url-field:focus{border-color:var(--gold);background:rgba(0,0,0,.5);}
 
@@ -177,7 +150,7 @@
       background:var(--panel-bg);padding:10px 16px;border-radius:999px;
       border:1px solid rgba(197,160,89,.2);font-size:11px;z-index:1000;
       backdrop-filter:blur(10px);
-      opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .3s;
+      opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .25s;
     }
     .network-status.show{opacity:1;pointer-events:auto;transform:translateY(0);}
 
@@ -192,7 +165,7 @@
       position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);
       background:rgba(0,0,0,.92);border:1px solid var(--gold);
       padding:20px 40px;border-radius:12px;z-index:9999;color:var(--gold);
-      font-family:'Cinzel',serif;opacity:0;pointer-events:none;transition:all .25s;
+      font-family:'Cinzel',serif;opacity:0;pointer-events:none;transition:all .22s;
     }
     #notification.active{opacity:1;transform:translate(-50%,-50%) scale(1);}
 
@@ -203,9 +176,9 @@
     }
     #role-badge b{color:var(--gold);}
 
-    /* Inspector grande (melhor interface) */
+    /* Inspector grande (única UI de edição) */
     .inspector{
-      position:fixed;top:178px;right:20px;z-index:1200;width:380px;max-height:70vh;
+      position:fixed;top:178px;right:20px;z-index:1200;width:420px;max-height:72vh;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
       border-radius:18px;padding:14px;backdrop-filter:blur(10px);
       box-shadow:0 12px 34px rgba(0,0,0,.5);
@@ -217,7 +190,7 @@
     .inspector .block{background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.18);border-radius:14px;padding:10px;}
     .inspector label{font-size:11px;opacity:.85;display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;}
     .inspector input[type="range"]{width:100%;}
-    .inspector input[type="number"], .inspector select{
+    .inspector input[type="number"], .inspector select, .inspector input[type="text"]{
       width:100%;padding:10px;border-radius:12px;border:1px solid rgba(197,160,89,.22);
       background:rgba(0,0,0,.35);color:#fff;outline:none;
     }
@@ -231,13 +204,14 @@
       font-size:11px;padding:8px 12px;border-radius:999px;border:1px solid rgba(197,160,89,.25);
       cursor:pointer;background:rgba(255,255,255,.03);color:#ddd;font-weight:700;
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      user-select:none;
     }
-    .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+    .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.06);}
 
     /* Layers panel */
     .layers-panel{
       position:fixed;top:86px;left:50%;transform:translateX(-50%);
-      z-index:1200;min-width:380px;max-width:560px;
+      z-index:1200;min-width:420px;max-width:620px;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
       border-radius:18px;padding:12px;backdrop-filter:blur(10px);
       box-shadow:0 12px 34px rgba(0,0,0,.5);
@@ -247,15 +221,51 @@
     .layer-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.12);margin-bottom:8px;}
     .layer-row b{color:var(--gold);}
 
-    /* Scene + Network reused pill style */
-    .mini{font-size:10px;opacity:.85;}
+    .mini{font-size:10px;opacity:.85;line-height:1.35;}
 
+    /* Fog overlay: canvas full screen (não escala com o board) */
+    #fog-overlay{
+      position:fixed; inset:0;
+      z-index:900; /* acima do board, abaixo do HUD/Sidebar/Inspector */
+      pointer-events:none;
+      opacity:0;
+      transition:opacity .18s ease;
+    }
+    #fog-overlay.on{opacity:1;}
+    #fog-canvas{width:100%;height:100%;display:block;}
+
+    /* Biblioteca UI */
+    .tabbar{display:flex;gap:8px;margin-bottom:10px;}
+    .tab{flex:1;text-align:center;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.2);background:rgba(255,255,255,.03);cursor:pointer;font-weight:800;font-size:11px;letter-spacing:.5px;}
+    .tab.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+    .library-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    .lib-card{border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.02);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .12s ease, border-color .12s ease;}
+    .lib-card:hover{transform:scale(1.02);border-color:rgba(197,160,89,.5);}
+    .lib-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#0b0b0b;}
+    .lib-meta{padding:8px;}
+    .lib-meta b{display:block;font-size:11px;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .lib-meta span{display:block;font-size:10px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .lib-actions{display:flex;gap:8px;margin-top:8px;}
+    .lib-actions button{flex:1;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);cursor:pointer;font-weight:800;font-size:11px;}
+    .lib-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+
+    /* Scene list */
+    .scene-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.15);background:rgba(255,255,255,.02);margin-bottom:8px;}
+    .scene-row b{color:var(--gold);font-size:11px;}
+    .scene-row span{font-size:10px;opacity:.75;}
+    .scene-row .btn{padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);cursor:pointer;font-weight:900;font-size:10px;}
+    .scene-row .btn:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
   </style>
 </head>
 
 <body>
   <div id="notification">OK</div>
   <div id="role-badge">Modo: <b id="role-text">...</b></div>
+
+  <!-- Fog overlay -->
+  <div id="fog-overlay">
+    <canvas id="fog-canvas"></canvas>
+  </div>
 
   <div class="btn-toggle-hud" onclick="toggleHUD()" title="Esconder/Mostrar Interface">👁️</div>
 
@@ -282,22 +292,28 @@
       <button class="btn-luxury py-0 px-2 text-[10px]" onclick="copyInviteLink()" id="btn-invite">🔗 Copiar Convite</button>
     </div>
 
-    <!-- Inspector (grande) -->
+    <!-- Inspector (único controle de token) -->
     <div class="inspector" id="inspector">
       <h4>Inspector</h4>
       <div class="mini" id="inspector-sub">Selecione um token.</div>
 
-      <div class="row" style="margin-top:10px;">
+      <div class="block" style="margin:10px 0;">
+        <label>Nome <span id="v-name">-</span></label>
+        <input type="text" id="i-name" placeholder="Ex: Goblin, NPC 1..." />
+        <div class="mini" style="margin-top:6px;">Só pra organização (salvo em cenas e perfil).</div>
+      </div>
+
+      <div class="row">
         <div class="block">
           <label>Layer <span id="v-layer">-</span></label>
-          <input type="number" id="i-layer" min="1" max="50" value="2" />
+          <input type="number" id="i-layer" min="1" max="50" value="1" />
         </div>
 
         <div class="block">
           <label>Lock <span id="v-locked">-</span></label>
-          <div style="display:flex;gap:10px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <div class="pill" id="i-lock" onclick="inspectorToggleLock()">🔒 Trancar</div>
-            <div class="pill" id="i-unlock" onclick="inspectorUnlock()">🔓</div>
+            <div class="pill" id="i-unlock" onclick="inspectorUnlock()">🔓 Destrancar</div>
           </div>
         </div>
       </div>
@@ -305,7 +321,7 @@
       <div class="row">
         <div class="block">
           <label>Tamanho <span id="v-size">-</span></label>
-          <input type="range" id="i-size" min="40" max="2500" value="160" />
+          <input type="range" id="i-size" min="40" max="2500" value="180" />
         </div>
         <div class="block">
           <label>Rotação <span id="v-rot">-</span></label>
@@ -322,53 +338,119 @@
           <label>Fit <span id="v-fit">-</span></label>
           <select id="i-fit">
             <option value="contain">Contain</option>
-            <option value="cover">Cover</option>
+            <option value="cover">Cover (preenche)</option>
           </select>
+          <div class="mini" style="margin-top:6px;">Melhora “portrait” com cover, sem cortar estranho.</div>
         </div>
       </div>
 
       <div class="block" style="margin-bottom:10px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
           <div>
-            <div style="font-family:'Cinzel',serif;color:var(--gold);font-weight:700;">Fog de Visão</div>
-            <div class="mini">Define raio para o token (em px do tabuleiro).</div>
+            <div style="font-family:'Cinzel',serif;color:var(--gold);font-weight:700;">Fog do Elemento</div>
+            <div class="mini">Se ativar “Emite visão”, esse token abre o fog no raio definido.</div>
           </div>
-          <div class="pill" id="i-fog-assign" onclick="inspectorSetFogActive()">🎯 Usar como visão</div>
+          <div class="pill" id="i-fog-emitter" onclick="inspectorToggleFogEmitter()">👁️ Emite visão</div>
         </div>
         <div style="margin-top:10px;">
-          <label>Raio <span id="v-fog">-</span></label>
+          <label>Raio de visão <span id="v-fog">-</span></label>
           <input type="range" id="i-fog" min="50" max="2500" step="10" value="600" />
+        </div>
+        <div class="mini" style="margin-top:8px;">
+          Regras: Players só enxergam tokens dentro de pelo menos 1 área de visão ativa (exceto o mapa).
         </div>
       </div>
 
       <div class="actions">
-        <button onclick="inspectorBringFront()">⬆️ Frente</button>
-        <button onclick="inspectorSendBack()">⬇️ Fundo</button>
+        <button onclick="inspectorBringFront()">⬆️ Subir layer</button>
+        <button onclick="inspectorSendBack()">⬇️ Descer layer</button>
       </div>
 
       <div class="actions">
         <button onclick="inspectorReset()">♻️ Reset</button>
         <button style="color:#ff6b6b;border-color:rgba(255,107,107,.35);" onclick="inspectorDelete()">🗑️ Deletar</button>
       </div>
+
+      <div class="block" style="margin-top:10px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Cinzel',serif;color:var(--gold);font-weight:700;">Adicionar ao Perfil</div>
+            <div class="mini">Guarda este item no perfil/biblioteca.</div>
+          </div>
+          <div class="pill" onclick="inspectorAddToProfile()">➕ Salvar no Perfil</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Camadas (dinâmicas; 0 = mapa; tokens criam layers conforme existem) -->
+    <!-- Camadas -->
     <div class="layers-panel" id="layers-panel">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
         <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Camadas</div>
         <button class="btn-luxury py-0 px-2 text-[10px]" onclick="rebuildLayersPanel()">Atualizar</button>
       </div>
-      <div class="mini" style="margin-bottom:10px;">Layer 0 é o mapa. As outras aparecem conforme você adiciona elementos.</div>
+      <div class="mini" style="margin-bottom:10px;">Layer 0 é o mapa. Layers aparecem automaticamente conforme você adiciona elementos.</div>
       <div id="layers-list"></div>
     </div>
 
+    <!-- Sidebar -->
     <div class="sidebar hud-element" id="sidebar">
       <div class="toggle-sidebar-btn" onclick="toggleSidebar()">☰</div>
       <div class="p-6 overflow-y-auto h-full">
-        <h2 class="text-xl font-bold mb-6 border-b border-gold/30 pb-3">Atelier P2P</h2>
+        <h2 class="text-xl font-bold mb-4 border-b border-gold/30 pb-3">Atelier P2P</h2>
 
+        <!-- CENAS -->
+        <div class="mb-8" id="host-only-scenes">
+          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Cenas (Save/Load)</h3>
+          <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
+            <input type="text" id="scene-name" class="url-field" placeholder="Nome da cena (ex: Dungeon 01)">
+            <div style="display:flex;gap:10px;">
+              <button class="btn-luxury w-full border border-gold/30" onclick="saveScene()">Salvar</button>
+              <button class="btn-luxury w-full border border-gold/30" onclick="saveSceneAsNew()">Salvar como nova</button>
+            </div>
+
+            <div class="mini" style="margin-top:10px;">Export/Import JSON</div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+              <button class="btn-luxury w-full border border-gold/30" onclick="exportAll()">Exportar Tudo</button>
+              <label class="btn-luxury w-full border border-gold/30 text-center cursor-pointer">
+                Importar Tudo
+                <input type="file" id="import-all-file" accept="application/json" class="hidden" onchange="importAllFile(event)">
+              </label>
+            </div>
+          </div>
+
+          <div class="mini" style="margin:10px 0 6px 2px;">Lista de cenas</div>
+          <div id="scene-list"></div>
+        </div>
+
+        <!-- PERFIL / BIBLIOTECA -->
+        <div class="mb-8" id="host-only-profile">
+          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Perfil / Biblioteca (perfil.json)</h3>
+          <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
+            <div class="tabbar">
+              <div class="tab active" id="tab-maps" onclick="setProfileTab('maps')">MAPAS</div>
+              <div class="tab" id="tab-players" onclick="setProfileTab('players')">PLAYERS</div>
+              <div class="tab" id="tab-assets" onclick="setProfileTab('assets')">ASSETS</div>
+            </div>
+
+            <div class="mini" style="margin-bottom:10px;">
+              Clique em um item para colocar na mesa. (Mapa aplica como Layer 0)
+            </div>
+
+            <div id="profile-grid" class="library-grid"></div>
+
+            <div class="lib-actions">
+              <button onclick="exportProfile()">Exportar Perfil</button>
+              <label style="flex:1;">
+                <button style="width:100%;" onclick="document.getElementById('import-profile-file').click()">Importar Perfil</button>
+                <input type="file" id="import-profile-file" accept="application/json" class="hidden" onchange="importProfileFile(event)">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- IMPORT HOST -->
         <div class="mb-8" id="host-only-map">
-          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Mapa (Layer 0)</h3>
+          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Mapa (Layer 0)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="map-file" accept="image/*" class="hidden" onchange="importAsset(event, 'map')">
             <label for="map-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
@@ -378,24 +460,24 @@
         </div>
 
         <div class="mb-8" id="host-only-players">
-          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Players</h3>
+          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Players</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="player-file" accept="image/*" class="hidden" onchange="importAsset(event, 'player')">
             <label for="player-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
             <input type="text" id="player-url" class="url-field" placeholder="URL Imagem...">
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('player-url', 'player')">Adicionar Player</button>
           </div>
-          <div class="mini" style="margin-top:8px;">Por padrão: primeira layer criada será 1 (tokens).</div>
         </div>
 
         <div class="mb-8" id="host-only-assets">
-          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Assets</h3>
+          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Assets</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="asset-file" accept="image/*" class="hidden" onchange="importAsset(event, 'asset')">
             <label for="asset-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
             <input type="text" id="asset-url" class="url-field" placeholder="URL Imagem...">
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('asset-url', 'asset')">Adicionar Asset</button>
           </div>
+          <p class="mini" style="margin-top:8px;">Assets = tudo que não é player nem mapa.</p>
         </div>
 
         <div class="mt-auto pt-6 border-t border-gold/20" id="host-only-clear">
@@ -420,38 +502,45 @@
     <div id="canvas-container">
       <div id="map-container"></div>
       <div id="grid-layer" class="grid-layer"></div>
-      <div id="fog-layer"></div>
     </div>
   </div>
 
   <script>
     /********************************************************************
-     * ✅ Novos pedidos
-     * 1) Fog de visão por token (raio configurável) + escolher qual token é a visão ativa.
-     * 2) Interface melhor: Inspector grande com sliders e botões grandes.
-     * 3) Layers: 0 só mapa; outras layers aparecem conforme existirem tokens.
-     * 4) Otimização: menos rebuilds, updates de UI com throttle, fog com RAF.
+     * ✅ Implementado nesta versão:
+     * - Save/Load de Cenas (localStorage + export/import JSON)
+     * - Perfil/Biblioteca (perfil.json) com abas (Mapas/Players/Assets)
+     * - Salva URLs + Arquivos (DataURL base64)
+     * - Fog por token: cada token pode emitir visão com raio próprio
+     * - Para PLAYER: tokens fora de qualquer visão ficam invisíveis (exceto mapa)
+     * - Removeu token-controls (barra em cima). Só Inspector edita.
+     * - Layers dinâmicas (0 mapa). Mapa palpável com inércia.
+     * - Host autoritativo via PeerJS: players só mexem em tokens desbloqueados e layer destrancada.
      ********************************************************************/
 
-    // ========= UTIL =========
-    const generateUUID = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+    // ===== Util =====
     const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+    const generateUUID = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const nowISO = ()=> new Date().toISOString();
 
     function showNotification(msg){
       const n=document.getElementById('notification');
       n.innerText=msg;
       n.classList.add('active');
-      setTimeout(()=>n.classList.remove('active'),1800);
+      setTimeout(()=>n.classList.remove('active'),1600);
     }
 
-    // ========= ELEMENTOS =========
+    // ===== Elements =====
     const canvas = document.getElementById('canvas-container');
     const viewport = document.getElementById('viewport');
     const mapContainer = document.getElementById('map-container');
     const gridLayer = document.getElementById('grid-layer');
     const sidebar = document.getElementById('sidebar');
     const diceLogEntries = document.getElementById('dice-entries');
-    const fogLayer = document.getElementById('fog-layer');
+
+    const fogOverlay = document.getElementById('fog-overlay');
+    const fogCanvas  = document.getElementById('fog-canvas');
+    const fogCtx = fogCanvas.getContext('2d');
 
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
@@ -461,6 +550,8 @@
     const tinyStatus = document.getElementById('tiny-status');
     const tinyRoom = document.getElementById('tiny-room');
 
+    const hostOnlyScenes = document.getElementById('host-only-scenes');
+    const hostOnlyProfile = document.getElementById('host-only-profile');
     const hostOnlyMap = document.getElementById('host-only-map');
     const hostOnlyPlayers = document.getElementById('host-only-players');
     const hostOnlyAssets = document.getElementById('host-only-assets');
@@ -481,7 +572,7 @@
     const inspector = document.getElementById('inspector');
     const inspectorSub = document.getElementById('inspector-sub');
 
-    // inspector values
+    const iName = document.getElementById('i-name');
     const iLayer = document.getElementById('i-layer');
     const iSize  = document.getElementById('i-size');
     const iRot   = document.getElementById('i-rot');
@@ -489,6 +580,7 @@
     const iFit   = document.getElementById('i-fit');
     const iFog   = document.getElementById('i-fog');
 
+    const vName  = document.getElementById('v-name');
     const vLayer = document.getElementById('v-layer');
     const vLocked= document.getElementById('v-locked');
     const vSize  = document.getElementById('v-size');
@@ -497,20 +589,21 @@
     const vFit   = document.getElementById('v-fit');
     const vFog   = document.getElementById('v-fog');
 
-    // ========= CAMERA =========
+    const fogEmitterPill = document.getElementById('i-fog-emitter');
+
+    // ===== Camera =====
     let scale = 1;
     let posX = window.innerWidth/2 - 5000;
     let posY = window.innerHeight/2 - 5000;
     let isPanning=false;
     let startPan={x:0,y:0};
-
     function updateTransform(){ canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`; }
     updateTransform();
 
-    // ========= SELEÇÃO =========
-    let selectedToken = null;
+    // ===== Selection =====
+    let selectedToken=null;
 
-    // ========= REDE =========
+    // ===== Networking =====
     let peer, connections=[], hostConnection=null;
     let myId=null;
     let isHost=false;
@@ -523,115 +616,233 @@
       ]
     };
 
-    // ========= STATE (host autoritativo) =========
+    // ===== State (host authoritative) =====
     const state = {
-      map: { src:null, locked:false, x:0, y:0 },   // layer 0
-      tokens: {},                                   // layers >= 1
+      version: 1,
+      map: { src:null, locked:false, x:0, y:0 }, // layer 0
+      tokens: {}, // id -> token
       fog: {
         enabled: false,
-        activeTokenId: null, // token que revela
-        softness: 0.18,      // borda suave
-        darkness: 0.88       // escuro
+        darkness: 0.90,   // 0..1
+        softness: 0.20    // 0..1
       }
     };
 
-    // ========= LAYERS =========
-    // 0 é mapa (sempre), tokens >= 1.
-    // layers aparecem dinamicamente conforme existem tokens naquela layer.
+    // Layers (host controls)
     const layerState = {
       visible: {}, // layer -> bool
-      locked: {},  // layer -> bool
+      locked: {}   // layer -> bool
     };
     function ensureLayerDefaults(layer){
       if (layer == null) return;
-      if (!(layer in layerState.visible)) layerState.visible[layer] = true;
-      if (!(layer in layerState.locked)) layerState.locked[layer] = false;
+      const l=Number(layer);
+      if (!(l in layerState.visible)) layerState.visible[l]=true;
+      if (!(l in layerState.locked)) layerState.locked[l]=false;
     }
     function computeTokenZIndex(layer){
-      // mapa 5, grid 6, tokens 100+ (por layer)
-      const base = 100;
-      const l = Number(layer || 1);
-      return base + l * 10;
+      const base=100;
+      const l=Number(layer||1);
+      return base + l*10;
     }
-    function applyLayerVisibilityToDOM(){
-      for (const el of document.querySelectorAll('.token')){
-        const layer = Number(el.dataset.layer || 1);
-        ensureLayerDefaults(layer);
-        el.style.display = layerState.visible[layer] ? "" : "none";
+
+    // ===== Storage: scenes + profile =====
+    const LS_SCENES_KEY = "ttl_scenes_v1";      // { scenes: {name: sceneObj}, order:[name...] }
+    const LS_PROFILE_KEY= "ttl_profile_v1";     // profile obj
+
+    const defaultProfile = ()=>({
+      version: 1,
+      updatedAt: nowISO(),
+      maps: [],
+      players: [],
+      assets: []
+    });
+
+    let profileTab = "maps";
+    function setProfileTab(tab){
+      profileTab=tab;
+      document.getElementById('tab-maps').classList.toggle('active', tab==="maps");
+      document.getElementById('tab-players').classList.toggle('active', tab==="players");
+      document.getElementById('tab-assets').classList.toggle('active', tab==="assets");
+      renderProfileGrid();
+    }
+
+    function loadProfile(){
+      try{
+        const raw=localStorage.getItem(LS_PROFILE_KEY);
+        if(!raw) return defaultProfile();
+        const obj=JSON.parse(raw);
+        if(!obj || typeof obj!=="object") return defaultProfile();
+        return { ...defaultProfile(), ...obj };
+      }catch(e){
+        return defaultProfile();
       }
     }
-
-    // ========= FOG =========
-    let fogRAF = null;
-    function toggleFog(){
-      if (!isHost) return alert("Apenas o Host controla o Fog.");
-      const a = { type:"FOG_SET", prop:"enabled", value: !state.fog.enabled };
-      applyAction(a,false); broadcastACT(a);
-      showNotification(state.fog.enabled ? "Fog ON" : "Fog OFF");
+    function saveProfileObj(p){
+      p.updatedAt = nowISO();
+      localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(p));
     }
+    let profile = loadProfile();
 
+    function loadScenesStore(){
+      try{
+        const raw=localStorage.getItem(LS_SCENES_KEY);
+        if(!raw) return {version:1, order:[], scenes:{}};
+        const obj=JSON.parse(raw);
+        if(!obj || typeof obj!=="object") return {version:1, order:[], scenes:{}};
+        obj.order = obj.order || [];
+        obj.scenes = obj.scenes || {};
+        return obj;
+      }catch(e){
+        return {version:1, order:[], scenes:{}};
+      }
+    }
+    function saveScenesStore(store){
+      localStorage.setItem(LS_SCENES_KEY, JSON.stringify(store));
+    }
+    let scenesStore = loadScenesStore();
+
+    // ===== Fog drawing (multiple emitters union) =====
+    function resizeFogCanvas(){
+      const dpr = window.devicePixelRatio || 1;
+      fogCanvas.width = Math.floor(window.innerWidth * dpr);
+      fogCanvas.height= Math.floor(window.innerHeight * dpr);
+      fogCanvas.style.width = window.innerWidth+"px";
+      fogCanvas.style.height= window.innerHeight+"px";
+      fogCtx.setTransform(dpr,0,0,dpr,0,0);
+      requestFogRedraw();
+    }
+    window.addEventListener('resize', ()=>{ resizeFogCanvas(); });
+    resizeFogCanvas();
+
+    let fogRAF=null;
     function requestFogRedraw(){
       if (fogRAF) return;
-      fogRAF = requestAnimationFrame(()=>{
-        fogRAF = null;
+      fogRAF=requestAnimationFrame(()=>{
+        fogRAF=null;
         drawFog();
+        if (!isHost) updatePlayerVisibilityByFog(); // players hide tokens
       });
     }
 
     function tokenCenterBoardPx(tokenEl){
-      // centro em coordenadas do tabuleiro (px no canvas)
       const x = parseFloat(tokenEl.style.left) + (parseFloat(tokenEl.style.width)/2);
       const y = parseFloat(tokenEl.style.top)  + (parseFloat(tokenEl.style.height)/2);
       return {x,y};
     }
-
-    function drawFog(){
-      if (!state.fog.enabled){
-        fogLayer.classList.remove('on');
-        fogLayer.style.background = "transparent";
-        return;
-      }
-
-      fogLayer.classList.add('on');
-
-      const tid = state.fog.activeTokenId;
-      if (!tid){
-        // Sem token ativo: tudo escuro
-        const alpha = clamp(state.fog.darkness, 0.1, 0.98);
-        fogLayer.style.background = `rgba(0,0,0,${alpha})`;
-        return;
-      }
-
-      const tokenEl = document.getElementById(`token-${tid}`);
-      if (!tokenEl || tokenEl.style.display === "none"){
-        const alpha = clamp(state.fog.darkness, 0.1, 0.98);
-        fogLayer.style.background = `rgba(0,0,0,${alpha})`;
-        return;
-      }
-
-      const {x,y} = tokenCenterBoardPx(tokenEl);
-
-      // Raio vem do token (visionRadius), com fallback
-      const radius = clamp(Number(tokenEl.dataset.visionRadius || 600), 50, 6000);
-      const softness = clamp(Number(state.fog.softness||0.18), 0.02, 0.6);
-      const alpha = clamp(Number(state.fog.darkness||0.88), 0.1, 0.98);
-
-      // Borda suave: um anel antes do escuro total
-      const inner = Math.max(0, radius * (1 - softness));
-      const outer = radius;
-
-      // A técnica: radial-gradient posicionado em px do canvas.
-      // (Como o fog-layer está dentro do canvas-container, ele escala junto com o tabuleiro.)
-      fogLayer.style.background = `
-        radial-gradient(circle at ${x}px ${y}px,
-          rgba(0,0,0,0) 0px,
-          rgba(0,0,0,0) ${inner}px,
-          rgba(0,0,0,${alpha}) ${outer}px,
-          rgba(0,0,0,${alpha}) 100%)
-      `;
+    function boardToScreen(x,y){
+      return {
+        sx: posX + x*scale,
+        sy: posY + y*scale
+      };
     }
 
-    // ========= UI HELPERS =========
+    function drawFog(){
+      const enabled = !!state.fog.enabled;
+      // Host: fog pode ficar desligado visualmente (ele vê tudo), mas se enabled, podemos mostrar overlay leve opcional.
+      // Player: overlay sempre ON quando enabled.
+      const showOverlay = enabled && (!isHost); // somente player vê overlay
+      fogOverlay.classList.toggle('on', showOverlay);
+
+      // Mesmo que host não veja, a lógica de visibilidade do player depende disso
+      // Desenha apenas se for player (ou se quiser ver em debug), aqui desenhamos sempre para simplificar
+      fogCtx.clearRect(0,0,window.innerWidth,window.innerHeight);
+
+      if (!enabled){
+        return;
+      }
+
+      // Preenche com preto
+      const alpha = clamp(Number(state.fog.darkness||0.9), 0.1, 0.98);
+      fogCtx.globalCompositeOperation = 'source-over';
+      fogCtx.fillStyle = `rgba(0,0,0,${alpha})`;
+      fogCtx.fillRect(0,0,window.innerWidth,window.innerHeight);
+
+      // Abre buracos com union: destination-out
+      fogCtx.globalCompositeOperation = 'destination-out';
+
+      const softness = clamp(Number(state.fog.softness||0.2), 0.02, 0.6);
+
+      // Emitters = tokens com fogEmitter true
+      const emitters = [];
+      for (const id in state.tokens){
+        const t = state.tokens[id];
+        if (t && t.fogEmitter === true){
+          const el=document.getElementById(`token-${id}`);
+          if (!el) continue;
+          // se layer invisível, ainda pode revelar? normalmente não; aqui revelador ignora visibilidade layer pra fog ser consistente
+          emitters.push({ id, el, radius: clamp(Number(t.visionRadius||600), 50, 8000) });
+        }
+      }
+
+      // Se nenhum emitter, tudo escuro para player (overlay total)
+      for (const em of emitters){
+        const c = tokenCenterBoardPx(em.el);
+        const scr = boardToScreen(c.x, c.y);
+        const r = em.radius * scale;
+
+        const inner = Math.max(0, r*(1-softness));
+        const grad = fogCtx.createRadialGradient(scr.sx, scr.sy, inner, scr.sx, scr.sy, r);
+        grad.addColorStop(0, "rgba(0,0,0,1)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        fogCtx.fillStyle = grad;
+        fogCtx.beginPath();
+        fogCtx.arc(scr.sx, scr.sy, r, 0, Math.PI*2);
+        fogCtx.fill();
+      }
+
+      fogCtx.globalCompositeOperation = 'source-over';
+    }
+
+    // Player: hide tokens that are outside all vision areas (except map)
+    function updatePlayerVisibilityByFog(){
+      if (isHost) return;
+      const enabled = !!state.fog.enabled;
+
+      const emitterCenters = [];
+      if (enabled){
+        for (const id in state.tokens){
+          const t = state.tokens[id];
+          if (t && t.fogEmitter === true){
+            const el=document.getElementById(`token-${id}`);
+            if (!el) continue;
+            const c=tokenCenterBoardPx(el);
+            const r=clamp(Number(t.visionRadius||600), 50, 8000);
+            emitterCenters.push({x:c.x, y:c.y, r});
+          }
+        }
+      }
+
+      document.querySelectorAll('.token').forEach(el=>{
+        const id=el.dataset.uuid;
+        const tok=state.tokens[id];
+        if (!tok) return;
+
+        // se fog OFF: tudo visível
+        if (!enabled){
+          el.classList.remove('hidden-by-fog');
+          return;
+        }
+
+        // Se não existe nenhum emitter, tudo some (tokens) pro player
+        if (emitterCenters.length === 0){
+          el.classList.add('hidden-by-fog');
+          return;
+        }
+
+        const c=tokenCenterBoardPx(el);
+        let visible=false;
+        for (const em of emitterCenters){
+          const dx=c.x-em.x, dy=c.y-em.y;
+          if ((dx*dx+dy*dy) <= (em.r*em.r)){
+            visible=true; break;
+          }
+        }
+        if (visible) el.classList.remove('hidden-by-fog');
+        else el.classList.add('hidden-by-fog');
+      });
+    }
+
+    // ===== UI toggles =====
     function toggleHUD(){ document.body.classList.toggle('hud-hidden'); }
     function toggleSidebar(){ sidebar.classList.toggle('open'); }
     function toggleGrid(){ gridLayer.style.display = (gridLayer.style.display === 'none') ? 'block' : 'none'; }
@@ -642,16 +853,16 @@
       layersPanel.classList.toggle('show');
       rebuildLayersPanel();
     }
-
     function toggleInspector(){
-      if (!isHost) return; // player não precisa de inspector completo
+      if (!isHost) return;
       inspector.classList.toggle('show');
       syncInspectorFromSelection();
     }
 
     function setRoleUI(){
       roleText.textContent = isHost ? "HOST (Mestre)" : "PLAYER";
-
+      hostOnlyScenes.style.display = isHost ? "" : "none";
+      hostOnlyProfile.style.display = isHost ? "" : "none";
       hostOnlyMap.style.display = isHost ? "" : "none";
       hostOnlyPlayers.style.display = isHost ? "" : "none";
       hostOnlyAssets.style.display = isHost ? "" : "none";
@@ -668,7 +879,7 @@
       inspector.style.display = isHost ? "" : "none";
     }
 
-    // ========= INVITE =========
+    // ===== Invite =====
     function copyInviteLink(){
       if (!myId) return alert("Aguarde a conexão...");
       if (!isHost) return alert("Apenas o Host copia convite.");
@@ -681,7 +892,7 @@
       } else prompt("Copie:", invite);
     }
 
-    // ========= PAN/ZOOM =========
+    // ===== Camera controls =====
     viewport.addEventListener('wheel',(e)=>{
       if (e.ctrlKey) return;
       e.preventDefault();
@@ -696,6 +907,7 @@
       posX = mx - cx*scale;
       posY = my - cy*scale;
       updateTransform();
+      requestFogRedraw();
     },{passive:false});
 
     window.addEventListener('mousedown',(e)=>{
@@ -710,11 +922,12 @@
         posX=e.clientX-startPan.x;
         posY=e.clientY-startPan.y;
         updateTransform();
+        requestFogRedraw();
       }
     });
     window.addEventListener('mouseup',()=>{ isPanning=false; viewport.style.cursor='grab'; });
 
-    // ========= MAPA palpável com inércia =========
+    // ===== Map palpable with inertia =====
     let mapDragging=false;
     let mapDragStart={mx:0,my:0,x:0,y:0};
     let mapVel={vx:0,vy:0};
@@ -725,14 +938,11 @@
       state.map.x = x;
       state.map.y = y;
       mapContainer.style.transform = `translate(${x}px, ${y}px)`;
-      if (state.fog.enabled) requestFogRedraw();
     }
-
     function stopMapInertia(){
       if (mapInertiaRAF) cancelAnimationFrame(mapInertiaRAF);
       mapInertiaRAF=null;
     }
-
     function startMapInertia(){
       stopMapInertia();
       const friction=0.92, minV=0.05;
@@ -750,7 +960,6 @@
           }
           return;
         }
-
         setMapOffset(state.map.x + mapVel.vx, state.map.y + mapVel.vy);
         mapInertiaRAF=requestAnimationFrame(step);
       };
@@ -770,7 +979,6 @@
         applyAction(a,false); broadcastACT(a);
       }
     }
-
     function toggleMapLock(){
       if (!isHost) return;
       setMapLockLocal(!state.map.locked,true);
@@ -832,12 +1040,12 @@
         mapContainer.innerHTML="";
         mapContainer.appendChild(img);
 
+        // Centraliza visual
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
         posX = window.innerWidth/2 - (img.width*scale)/2;
         posY = window.innerHeight/2 - (img.height*scale)/2;
         updateTransform();
-
-        setMapOffset(state.map.x||0, state.map.y||0);
+        requestFogRedraw();
       };
       img.src=src;
 
@@ -847,7 +1055,7 @@
       }
     }
 
-    // ========= TOKENS =========
+    // ===== Token helpers =====
     function normalizeTokenProps(id, src, type, props){
       const p=props||{};
       const layer = Number(p.layer ?? 1);
@@ -855,44 +1063,62 @@
       return {
         id, src, type,
         kind: p.kind ?? "asset",
+        name: p.name ?? "",
         layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
-        w: p.w ?? 160,
-        h: p.h ?? 160,
+        w: p.w ?? 180,
+        h: p.h ?? 180,
         rotation: p.rotation ?? 0,
         flipped: p.flipped ?? "false",
         innerZoom: p.innerZoom ?? 1,
         locked: p.locked ?? "false",
         fitMode: p.fitMode ?? "contain",
+        fogEmitter: !!p.fogEmitter,
         visionRadius: p.visionRadius ?? 600
       };
     }
+    function updateImgTransform(token){
+      const el = token.querySelector('img') || token.querySelector('iframe');
+      if (!el) return;
+      if (el.tagName==="IMG") el.style.objectFit = token.dataset.fitMode || "contain";
 
-    function nextAutoLayer(){
-      // layers dinâmicas: pega maior layer existente e usa 1 se vazio.
-      const layers = Object.values(state.tokens).map(t=>Number(t.layer||1));
-      const max = layers.length ? Math.max(...layers) : 0;
-      return Math.max(1, max); // não cria “sempre um novo”; usa última por padrão
+      const rotation = token.dataset.rotation || 0;
+      const flipped = token.dataset.flipped === "true";
+      const innerZoom= token.dataset.innerZoom || 1;
+      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped?-1:1})`;
     }
 
-    function hostCreateToken(src, contentType, kind){
+    function applyLayerVisibilityToDOM(){
+      for (const el of document.querySelectorAll('.token')){
+        const layer = Number(el.dataset.layer || 1);
+        ensureLayerDefaults(layer);
+        el.style.display = layerState.visible[layer] ? "" : "none";
+      }
+      if (!isHost) updatePlayerVisibilityByFog();
+    }
+
+    // ===== Tokens: create/add DOM =====
+    function hostCreateToken(src, kind){
       if (!isHost) return;
 
       const id = generateUUID();
+      const contentType = "image";
 
-      let width = (contentType==="web") ? 420 : 180;
-      let height= (contentType==="web") ? 240 : 180;
+      // layer dinâmica: se existe token, usa a maior layer atual; senão, layer 1
+      const layers = Object.values(state.tokens).map(t=>Number(t.layer||1));
+      const baseLayer = layers.length ? Math.max(...layers) : 1;
+      ensureLayerDefaults(baseLayer);
 
-      const layerDefault = nextAutoLayer(); // dinâmica (aparece conforme existir)
-      ensureLayerDefaults(layerDefault);
+      let width = 180, height=180;
 
       const centerX = (window.innerWidth/2 - posX)/scale;
       const centerY = (window.innerHeight/2 - posY)/scale;
 
       const props = {
         kind,
-        layer: layerDefault,
+        name: "",
+        layer: baseLayer,
         x: (centerX - width/2) + "px",
         y: (centerY - height/2) + "px",
         w: width,
@@ -902,6 +1128,7 @@
         innerZoom: 1,
         locked: "false",
         fitMode: "contain",
+        fogEmitter: false,
         visionRadius: 600
       };
 
@@ -927,9 +1154,10 @@
 
       token.dataset.layer = String(layer);
       token.dataset.kind = kind;
+      token.dataset.name = props?.name ?? "";
 
-      const width = props?.w ? parseInt(props.w) : (contentType==="web"?420:180);
-      const height= props?.h ? parseInt(props.h) : (contentType==="web"?240:180);
+      const width = props?.w ? parseInt(props.w) : 180;
+      const height= props?.h ? parseInt(props.h) : 180;
       token.style.width = width+"px";
       token.style.height= height+"px";
 
@@ -943,6 +1171,7 @@
       token.dataset.innerZoom= props?.innerZoom ?? 1;
       token.dataset.locked   = props?.locked ?? "false";
       token.dataset.fitMode  = props?.fitMode ?? "contain";
+      token.dataset.fogEmitter = (props?.fogEmitter ? "true" : "false");
       token.dataset.visionRadius = props?.visionRadius ?? 600;
 
       token.style.zIndex = String(computeTokenZIndex(layer));
@@ -963,6 +1192,9 @@
       if (contentType==="image"){
         content=document.createElement('img');
         content.src=src;
+        // dica: melhora “portrait”
+        content.decoding = "async";
+        content.loading = "lazy";
       } else {
         content=document.createElement('iframe');
         content.src=src;
@@ -973,56 +1205,33 @@
       const handle=document.createElement('div');
       handle.className="resize-handle";
 
-      const controls=document.createElement('div');
-      controls.className="token-controls";
-      controls.innerHTML = `
-        <span class="token-btn" title="Layer -" onclick="layerToken(event, -1)">🧱➖</span>
-        <span class="token-btn" title="Layer +" onclick="layerToken(event, 1)">🧱➕</span>
-        <span class="token-btn" title="Tamanho -" onclick="scaleToken(event, -50)">📏➖</span>
-        <span class="token-btn" title="Tamanho +" onclick="scaleToken(event, 50)">📏➕</span>
-        <span class="token-btn" title="Zoom -" onclick="zoomInnerToken(event, -0.1)">➖</span>
-        <span class="token-btn" title="Zoom +" onclick="zoomInnerToken(event, 0.1)">➕</span>
-        <span class="token-btn" title="Fit" onclick="fitToken(event)">🧩</span>
-        <span class="token-btn" title="Reset" onclick="resetToken(event)">♻️</span>
-        <span class="token-btn" title="Espelhar (F)" onclick="flipToken(this.closest('.token'))">↔️</span>
-        <span class="token-btn" title="Girar 45°" onclick="rotateToken(event, 45)">🔄</span>
-        <span class="token-btn" title="Trancar" onclick="lockToken(event)">🔒</span>
-        <span class="token-btn text-red-400" title="Eliminar" onclick="deleteToken(event)">🗑️</span>
-      `;
-
       wrapper.appendChild(content);
       token.appendChild(blocker);
       token.appendChild(wrapper);
       token.appendChild(handle);
-      token.appendChild(controls);
 
       canvas.appendChild(token);
-
       setTimeout(()=>updateImgTransform(token), 0);
 
-      // Ctrl+wheel = resize
-      token.addEventListener('wheel',(e)=>{
-        if (!e.ctrlKey) return;
+      // Select + Drag
+      token.addEventListener('mousedown',(e)=>{
+        if (e.button!==0 || e.altKey) return;
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||1)]) return;
-        e.preventDefault(); e.stopPropagation();
+        const layer = Number(token.dataset.layer||1);
+        if (layerState.locked[layer]) return;
 
-        const delta = e.deltaY>0 ? -25 : 25;
-        const w0=parseInt(token.dataset.sizeW), h0=parseInt(token.dataset.sizeH);
-        const ratio=h0/w0;
-        const w=clamp(w0+delta, 40, 2500);
-        const h=clamp(Math.round(w*ratio), 40, 2500);
-
-        const action={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w,h}};
-        if (isHost){ applyAction(action,false); broadcastACT(action); }
-        else sendREQ(action);
-      },{passive:false});
+        e.stopPropagation();
+        selectToken(token);
+        startDraggingToken(e, token);
+      });
 
       // Resize handle
       handle.addEventListener('mousedown',(e)=>{
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||1)]) return;
+        const layer = Number(token.dataset.layer||1);
+        if (layerState.locked[layer]) return;
         if (e.button!==0) return;
+
         e.stopPropagation(); e.preventDefault();
 
         const startX=e.clientX;
@@ -1042,12 +1251,13 @@
           token.dataset.sizeH=pendingH;
           token.style.width=pendingW+"px";
           token.style.height=pendingH+"px";
-          if (state.fog.enabled) requestFogRedraw();
+          requestFogRedraw();
         };
 
         const onUp=()=>{
           document.removeEventListener('mousemove',onMove);
           document.removeEventListener('mouseup',onUp);
+
           const action={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w:pendingW,h:pendingH}};
           if (isHost){ applyAction(action,false); broadcastACT(action); }
           else sendREQ(action);
@@ -1057,28 +1267,25 @@
         document.addEventListener('mouseup',onUp);
       });
 
-      // Drag
-      token.addEventListener('mousedown',(e)=>{
-        if (e.button!==0 || e.altKey) return;
+      // Ctrl+wheel resize
+      token.addEventListener('wheel',(e)=>{
+        if (!e.ctrlKey) return;
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||1)]) return;
-        e.stopPropagation();
-        selectToken(token);
-        startDraggingToken(e, token);
-      });
-    }
+        const layer = Number(token.dataset.layer||1);
+        if (layerState.locked[layer]) return;
 
-    function updateImgTransform(token){
-      const el = token.querySelector('img') || token.querySelector('iframe');
-      if (!el) return;
+        e.preventDefault(); e.stopPropagation();
+        const delta = e.deltaY>0 ? -25 : 25;
 
-      if (el.tagName==="IMG"){
-        el.style.objectFit = token.dataset.fitMode || "contain";
-      }
-      const rotation = token.dataset.rotation || 0;
-      const flipped = token.dataset.flipped === "true";
-      const innerZoom= token.dataset.innerZoom || 1;
-      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped?-1:1})`;
+        const w0=parseInt(token.dataset.sizeW), h0=parseInt(token.dataset.sizeH);
+        const ratio=h0/w0;
+        const w=clamp(w0+delta, 40, 2500);
+        const h=clamp(Math.round(w*ratio), 40, 2500);
+
+        const action={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w,h}};
+        if (isHost){ applyAction(action,false); broadcastACT(action); }
+        else sendREQ(action);
+      },{passive:false});
     }
 
     function selectToken(token){
@@ -1086,31 +1293,31 @@
       selectedToken = token;
       selectedToken.classList.add('selected');
       syncInspectorFromSelection();
-      if (state.fog.enabled) requestFogRedraw();
+      requestFogRedraw();
     }
 
     function startDraggingToken(e, token){
-      const startX=e.clientX, startY=e.clientY;
-      const initialLeft=parseFloat(token.style.left);
-      const initialTop=parseFloat(token.style.top);
+      let startX=e.clientX, startY=e.clientY;
+      let initialLeft=parseFloat(token.style.left);
+      let initialTop=parseFloat(token.style.top);
       let moved=false;
 
-      const onMove=(me)=>{
+      function onMove(me){
         moved=true;
         let dx=(me.clientX-startX)/scale;
         let dy=(me.clientY-startY)/scale;
         let newX=initialLeft+dx;
         let newY=initialTop+dy;
+
         if (gridLayer.style.display !== 'none'){
           newX=Math.round(newX/50)*50;
           newY=Math.round(newY/50)*50;
         }
         token.style.left=newX+"px";
         token.style.top=newY+"px";
-        if (state.fog.enabled && token.dataset.uuid === state.fog.activeTokenId) requestFogRedraw();
-      };
-
-      const onUp=()=>{
+        requestFogRedraw();
+      }
+      function onUp(){
         document.removeEventListener('mousemove',onMove);
         document.removeEventListener('mouseup',onUp);
         if (!moved) return;
@@ -1118,8 +1325,7 @@
         const action={type:"MOVE", id:token.dataset.uuid, x:token.style.left, y:token.style.top};
         if (isHost){ applyAction(action,false); broadcastACT(action); }
         else sendREQ(action);
-      };
-
+      }
       document.addEventListener('mousemove',onMove);
       document.addEventListener('mouseup',onUp);
     }
@@ -1129,14 +1335,17 @@
       if (!t) return;
       t.style.left=x;
       t.style.top=y;
-      if (state.fog.enabled && id === state.fog.activeTokenId) requestFogRedraw();
+      requestFogRedraw();
     }
 
     function updateTokenPropDOM(id, prop, value){
       const token=document.getElementById(`token-${id}`);
-      if (!token) return;
+      if(!token) return;
 
-      if (prop==="locked"){
+      if (prop==="name"){
+        token.dataset.name = String(value||"");
+      }
+      else if (prop==="locked"){
         token.dataset.locked = String(value);
         if (String(value)==="true"){
           token.classList.add('locked');
@@ -1170,37 +1379,41 @@
         token.dataset.layer=String(newLayer);
         token.style.zIndex=String(computeTokenZIndex(newLayer));
         token.style.display = layerState.visible[newLayer] ? "" : "none";
+      } else if (prop==="fogEmitter"){
+        token.dataset.fogEmitter = value ? "true" : "false";
       } else if (prop==="visionRadius"){
         token.dataset.visionRadius = Number(value);
       }
 
-      if (state.fog.enabled) requestFogRedraw();
       syncInspectorFromSelection();
+      requestFogRedraw();
     }
 
     function removeTokenLocal(id){
       const t=document.getElementById(`token-${id}`);
       if (t) t.remove();
       if (selectedToken?.dataset.uuid===id) selectedToken=null;
-      if (state.fog.activeTokenId===id) state.fog.activeTokenId=null;
       requestFogRedraw();
       syncInspectorFromSelection();
     }
 
-    // ========= INSPECTOR (ACTIONS) =========
+    // ===== Inspector sync =====
     function syncInspectorFromSelection(){
       if (!isHost) return;
 
       if (!selectedToken){
         inspectorSub.textContent="Selecione um token.";
-        vLayer.textContent="-"; vLocked.textContent="-"; vSize.textContent="-";
+        vName.textContent="-"; vLayer.textContent="-"; vLocked.textContent="-"; vSize.textContent="-";
         vRot.textContent="-"; vZoom.textContent="-"; vFit.textContent="-"; vFog.textContent="-";
+        iName.value=""; iLayer.value=1;
+        fogEmitterPill.classList.remove('active');
         return;
       }
 
       const id=selectedToken.dataset.uuid;
-      inspectorSub.textContent=`Selecionado: ${id.slice(-6)} • Layer ${selectedToken.dataset.layer}`;
+      inspectorSub.textContent=`Selecionado: ${id.slice(-6)} • ${selectedToken.dataset.kind}`;
 
+      const name = selectedToken.dataset.name || "";
       const layer = Number(selectedToken.dataset.layer||1);
       const locked= (selectedToken.dataset.locked==="true");
       const w = Number(selectedToken.dataset.sizeW||parseFloat(selectedToken.style.width)||180);
@@ -1208,7 +1421,9 @@
       const zoom=Number(selectedToken.dataset.innerZoom||1);
       const fit=String(selectedToken.dataset.fitMode||"contain");
       const fog=Number(selectedToken.dataset.visionRadius||600);
+      const emitter = (selectedToken.dataset.fogEmitter==="true");
 
+      vName.textContent = name ? name : "(sem nome)";
       vLayer.textContent=String(layer);
       vLocked.textContent=locked ? "TRAVADO" : "LIVRE";
       vSize.textContent=`${Math.round(w)}px`;
@@ -1217,12 +1432,15 @@
       vFit.textContent=fit;
       vFog.textContent=`${Math.round(fog)}px`;
 
+      iName.value = name;
       iLayer.value = String(layer);
       iSize.value  = String(clamp(w, 40, 2500));
       iRot.value   = String(clamp(rot, 0, 359));
       iZoom.value  = String(clamp(zoom, 0.2, 5));
       iFit.value   = fit;
       iFog.value   = String(clamp(fog, 50, 2500));
+
+      fogEmitterPill.classList.toggle('active', emitter);
     }
 
     function inspectorApplyProp(prop, value){
@@ -1232,16 +1450,12 @@
       applyAction(action,false); broadcastACT(action);
     }
 
+    iName.addEventListener('change',()=>inspectorApplyProp("name", iName.value));
     iLayer.addEventListener('change',()=>inspectorApplyProp("layer", clamp(Number(iLayer.value||1), 1, 50)));
     iRot.addEventListener('input',()=>inspectorApplyProp("rotation", clamp(Number(iRot.value||0), 0, 359)));
     iZoom.addEventListener('input',()=>inspectorApplyProp("innerZoom", clamp(Number(iZoom.value||1), 0.2, 5)));
     iFit.addEventListener('change',()=>inspectorApplyProp("fitMode", iFit.value));
-    iFog.addEventListener('input',()=>{
-      inspectorApplyProp("visionRadius", clamp(Number(iFog.value||600), 50, 6000));
-      // se ele for o token ativo do fog, redesenha
-      if (state.fog.activeTokenId === selectedToken.dataset.uuid) requestFogRedraw();
-    });
-
+    iFog.addEventListener('input',()=>inspectorApplyProp("visionRadius", clamp(Number(iFog.value||600), 50, 8000)));
     iSize.addEventListener('input',()=>{
       if (!selectedToken || !isHost) return;
       const w = clamp(Number(iSize.value||180), 40, 2500);
@@ -1254,22 +1468,17 @@
 
     function inspectorToggleLock(){
       if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
       const next = selectedToken.dataset.locked==="true" ? "false" : "true";
-      const a={type:"UPDATE_PROP", id, prop:"locked", value:next};
-      applyAction(a,false); broadcastACT(a);
+      inspectorApplyProp("locked", next);
     }
     function inspectorUnlock(){
       if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
-      const a={type:"UPDATE_PROP", id, prop:"locked", value:"false"};
-      applyAction(a,false); broadcastACT(a);
+      inspectorApplyProp("locked","false");
     }
-    function inspectorSetFogActive(){
+    function inspectorToggleFogEmitter(){
       if (!selectedToken || !isHost) return;
-      const a={type:"FOG_SET", prop:"activeTokenId", value:selectedToken.dataset.uuid};
-      applyAction(a,false); broadcastACT(a);
-      showNotification("Visão atribuída ao token!");
+      const next = (selectedToken.dataset.fogEmitter==="true") ? false : true;
+      inspectorApplyProp("fogEmitter", next);
     }
     function inspectorBringFront(){
       if (!selectedToken || !isHost) return;
@@ -1301,210 +1510,61 @@
       applyAction(a,false); broadcastACT(a);
     }
 
-    // ========= Token quick actions (controls) =========
-    window.lockToken=(e)=>{
-      e.stopPropagation();
-      if (!isHost) return;
-      const t=e.target.closest('.token'); if(!t) return;
-      const a={type:"UPDATE_PROP", id:t.dataset.uuid, prop:"locked", value:"true"};
-      applyAction(a,false); broadcastACT(a);
-    };
-    window.deleteToken=(e)=>{
-      e.stopPropagation();
-      if (!isHost) return;
-      const t=e.target.closest('.token'); if(!t) return;
-      const a={type:"REMOVE_TOKEN", id:t.dataset.uuid};
-      applyAction(a,false); broadcastACT(a);
-    };
-    window.zoomInnerToken=(e,delta)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      if (layerState.locked[Number(t.dataset.layer||1)]) return;
-      let z=Number(t.dataset.innerZoom||1);
-      z=clamp(z+delta, 0.2, 5);
-      const a={type:"UPDATE_PROP", id:t.dataset.uuid, prop:"innerZoom", value:z};
-      if (isHost){ applyAction(a,false); broadcastACT(a); } else sendREQ(a);
-    };
-    window.flipToken=(token)=>{
-      if (!token) return;
-      if (token.dataset.locked==="true") return;
-      if (layerState.locked[Number(token.dataset.layer||1)]) return;
-      const nv = (token.dataset.flipped==="false") ? "true" : "false";
-      const a={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"flipped", value:nv};
-      if (isHost){ applyAction(a,false); broadcastACT(a); } else sendREQ(a);
-    };
-    window.rotateToken=(e,deg)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      if (layerState.locked[Number(t.dataset.layer||1)]) return;
-      const nv = (Number(t.dataset.rotation||0)+deg)%360;
-      const a={type:"UPDATE_PROP", id:t.dataset.uuid, prop:"rotation", value:nv};
-      if (isHost){ applyAction(a,false); broadcastACT(a); } else sendREQ(a);
-    };
-    window.fitToken=(e)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      if (layerState.locked[Number(t.dataset.layer||1)]) return;
-      const id=t.dataset.uuid;
-      const acts=[
-        {type:"UPDATE_PROP", id, prop:"innerZoom", value:1},
-        {type:"UPDATE_PROP", id, prop:"fitMode", value:"contain"},
-      ];
-      if (isHost) acts.forEach(a=>{applyAction(a,false);broadcastACT(a);});
-      else acts.forEach(a=>sendREQ(a));
-    };
-    window.resetToken=(e)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      if (layerState.locked[Number(t.dataset.layer||1)]) return;
-      const id=t.dataset.uuid;
-      const acts=[
-        {type:"UPDATE_PROP", id, prop:"innerZoom", value:1},
-        {type:"UPDATE_PROP", id, prop:"rotation", value:0},
-        {type:"UPDATE_PROP", id, prop:"flipped", value:"false"},
-        {type:"UPDATE_PROP", id, prop:"fitMode", value:"contain"},
-      ];
-      if (isHost) acts.forEach(a=>{applyAction(a,false);broadcastACT(a);});
-      else acts.forEach(a=>sendREQ(a));
-    };
-    window.scaleToken=(e,deltaW)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      if (layerState.locked[Number(t.dataset.layer||1)]) return;
+    function inspectorAddToProfile(){
+      if (!selectedToken || !isHost) return;
+      const id=selectedToken.dataset.uuid;
+      const t=state.tokens[id];
+      if (!t) return;
 
-      const w0=Number(t.dataset.sizeW||parseFloat(t.style.width)||180);
-      const h0=Number(t.dataset.sizeH||parseFloat(t.style.height)||180);
-      const ratio = (w0>0)?(h0/w0):1;
-      const w=clamp(w0+deltaW, 40, 2500);
-      const h=clamp(Math.round(w*ratio), 40, 2500);
-
-      const a={type:"UPDATE_PROP", id:t.dataset.uuid, prop:"size", value:{w,h}};
-      if (isHost){ applyAction(a,false); broadcastACT(a); } else sendREQ(a);
-    };
-    window.layerToken=(e,delta)=>{
-      e.stopPropagation();
-      const t=e.target.closest('.token'); if(!t) return;
-      if (t.dataset.locked==="true") return;
-      const cur=Number(t.dataset.layer||1);
-      const next=clamp(cur+delta, 1, 50);
-      ensureLayerDefaults(next);
-      const a={type:"UPDATE_PROP", id:t.dataset.uuid, prop:"layer", value:next};
-      if (isHost){ applyAction(a,false); broadcastACT(a); rebuildLayersPanel(); }
-      else sendREQ(a);
-    };
-
-    // ========= Keyboard =========
-    window.addEventListener('keydown',(e)=>{
-      if (!selectedToken) return;
-      if (selectedToken.dataset.locked==="true") return;
-      if (layerState.locked[Number(selectedToken.dataset.layer||1)]) return;
-
-      if (e.key.toLowerCase()==='f') flipToken(selectedToken);
-      if (e.key==='Delete'){
-        if (!isHost) return;
-        const id=selectedToken.dataset.uuid;
-        const a={type:"REMOVE_TOKEN", id};
-        applyAction(a,false); broadcastACT(a);
-        selectedToken=null;
-      }
-    });
-
-    viewport.addEventListener('mousedown',(e)=>{
-      if (e.target===viewport || e.target===canvas || e.target===gridLayer || e.target===fogLayer){
-        if (selectedToken) selectedToken.classList.remove('selected');
-        selectedToken=null;
-        syncInspectorFromSelection();
-      }
-    });
-
-    // ========= DADOS / LOG =========
-    function rollDice(faces){
-      if (!isHost) return;
-      const res=Math.floor(Math.random()*faces)+1;
-      const a={type:"DICE", faces, result:res};
-      applyAction(a,false); broadcastACT(a);
-    }
-    function showDiceLog(faces,res){
-      const entry=document.createElement('div');
-      entry.className="dice-entry mb-2 border-l-2 border-gold pl-3 opacity-0 transform translate-x-4 transition-all duration-300";
-      entry.innerHTML=`<span class="opacity-50 text-[10px] font-bold">D${faces}:</span> <b class="text-white text-lg">${res}</b>`;
-      diceLogEntries.prepend(entry);
-      setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
-    }
-
-    // ========= IMPORT =========
-    function isImageUrl(url){
-      return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
-    }
-
-    function importFromUrl(inputId, type){
-      if (!isHost) return alert("Apenas o Host importa.");
-      const url=document.getElementById(inputId).value.trim();
-      if (!url) return;
-
-      if (type==="map"){
-        if (!isImageUrl(url)) return alert("Mapa precisa ser imagem direta.");
-        applyMapLocal(url,true);
-        document.getElementById(inputId).value="";
-        return;
-      }
-
-      if (!isImageUrl(url)) return alert("Tokens precisam ser imagens diretas.");
-
-      if (type==="player") hostCreateToken(url,"image","player");
-      else hostCreateToken(url,"image","asset");
-
-      document.getElementById(inputId).value="";
-      rebuildLayersPanel();
-      requestFogRedraw();
-    }
-
-    function importAsset(event, type){
-      if (!isHost) return alert("Apenas o Host importa.");
-      const file=event.target.files?.[0];
-      if (!file) return;
-      const reader=new FileReader();
-      reader.onload=(e)=>{
-        const dataUrl=e.target.result;
-        if (type==="map") applyMapLocal(dataUrl,true);
-        else if (type==="player") hostCreateToken(dataUrl,"image","player");
-        else hostCreateToken(dataUrl,"image","asset");
-        rebuildLayersPanel();
-        requestFogRedraw();
+      const entry = {
+        id: generateUUID(),
+        name: (t.name && t.name.trim()) ? t.name.trim() : `${t.kind}-${id.slice(-6)}`,
+        kind: t.kind,
+        src: t.src,
+        type: t.type || "image",
+        createdAt: nowISO()
       };
-      reader.readAsDataURL(file);
+
+      profile = loadProfile();
+      if (t.kind==="map"){
+        profile.maps.unshift(entry);
+      } else if (t.kind==="player"){
+        profile.players.unshift(entry);
+      } else {
+        profile.assets.unshift(entry);
+      }
+      saveProfileObj(profile);
+      renderProfileGrid();
+      showNotification("Salvo no Perfil!");
     }
 
-    // ========= Layers UI (dinâmico) =========
+    // ===== Fog toggle =====
+    function toggleFog(){
+      if (!isHost) return alert("Apenas o Host controla o Fog.");
+      const a = { type:"FOG_SET", prop:"enabled", value: !state.fog.enabled };
+      applyAction(a,false); broadcastACT(a);
+      showNotification(state.fog.enabled ? "Fog ON" : "Fog OFF");
+    }
+
+    // ===== Layers panel =====
     function rebuildLayersPanel(){
       if (!isHost) return;
 
-      // Descobre layers existentes a partir dos tokens
       const layers = Array.from(new Set(Object.values(state.tokens).map(t=>Number(t.layer||1)))).sort((a,b)=>a-b);
-
-      // Sempre mostra layer 0 (mapa)
       layersList.innerHTML="";
 
-      // Row do mapa
-      {
-        const row=document.createElement('div');
-        row.className="layer-row";
-        row.innerHTML = `
-          <div><b>Layer 0</b> <span class="mini">(Mapa)</span></div>
-          <div style="display:flex;gap:10px;">
-            <div class="pill active" style="pointer-events:none;opacity:.85;">Sempre visível</div>
-            <div class="pill ${state.map.locked?'active':''}" onclick="toggleMapLock()">Mapa ${state.map.locked?'Trancado':'Livre'}</div>
-          </div>
-        `;
-        layersList.appendChild(row);
-      }
+      // Layer 0 - mapa
+      const row0=document.createElement('div');
+      row0.className="layer-row";
+      row0.innerHTML = `
+        <div><b>Layer 0</b> <span class="mini">(Mapa)</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="pill active" style="pointer-events:none;opacity:.85;">Sempre visível</div>
+          <div class="pill ${state.map.locked?'active':''}" onclick="toggleMapLock()">Mapa ${state.map.locked?'Trancado':'Livre'}</div>
+        </div>
+      `;
+      layersList.appendChild(row0);
 
-      // Se não tem tokens, mostra hint
       if (!layers.length){
         const empty=document.createElement('div');
         empty.className="mini";
@@ -1514,10 +1574,8 @@
         return;
       }
 
-      // Rows layers >= 1
       for (const l of layers){
         ensureLayerDefaults(l);
-
         const row=document.createElement('div');
         row.className="layer-row";
 
@@ -1527,6 +1585,7 @@
         const actions=document.createElement('div');
         actions.style.display="flex";
         actions.style.gap="10px";
+        actions.style.flexWrap="wrap";
 
         const vis=document.createElement('div');
         vis.className = "pill " + (layerState.visible[l] ? "active" : "");
@@ -1553,7 +1612,399 @@
       }
     }
 
-    // ========= CLEAR / UNLOCK =========
+    // ===== Dice =====
+    function rollDice(faces){
+      if (!isHost) return;
+      const res=Math.floor(Math.random()*faces)+1;
+      const a={type:"DICE", faces, result:res};
+      applyAction(a,false); broadcastACT(a);
+    }
+    function showDiceLog(faces,res){
+      const entry=document.createElement('div');
+      entry.className="dice-entry mb-2 border-l-2 border-gold pl-3 opacity-0 transform translate-x-4 transition-all duration-300";
+      entry.innerHTML=`<span class="opacity-50 text-[10px] font-bold">D${faces}:</span> <b class="text-white text-lg">${res}</b>`;
+      diceLogEntries.prepend(entry);
+      setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
+    }
+
+    // ===== Imports =====
+    function isImageUrl(url){
+      return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
+    }
+
+    function importFromUrl(inputId, type){
+      if (!isHost) return alert("Apenas o Host importa.");
+      const url=document.getElementById(inputId).value.trim();
+      if (!url) return;
+
+      if (type==="map"){
+        if (!isImageUrl(url)) return alert("Mapa precisa ser imagem direta.");
+        applyMapLocal(url,true);
+        document.getElementById(inputId).value="";
+        return;
+      }
+
+      if (!isImageUrl(url)) return alert("Tokens precisam ser imagens diretas.");
+      if (type==="player") hostCreateToken(url,"player");
+      else hostCreateToken(url,"asset");
+
+      document.getElementById(inputId).value="";
+    }
+
+    function importAsset(event, type){
+      if (!isHost) return alert("Apenas o Host importa.");
+      const file=event.target.files?.[0];
+      if (!file) return;
+      const reader=new FileReader();
+      reader.onload=(e)=>{
+        const dataUrl=e.target.result;
+        if (type==="map") applyMapLocal(dataUrl,true);
+        else if (type==="player") hostCreateToken(dataUrl,"player");
+        else hostCreateToken(dataUrl,"asset");
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ===== Profile UI =====
+    function renderProfileGrid(){
+      const grid=document.getElementById('profile-grid');
+      grid.innerHTML="";
+
+      profile = loadProfile();
+      const list = profile[profileTab] || [];
+
+      if (!list.length){
+        const msg=document.createElement('div');
+        msg.className="mini";
+        msg.style.gridColumn="1/-1";
+        msg.style.padding="8px 2px";
+        msg.textContent="Vazio. Salve itens no perfil pelo Inspector.";
+        grid.appendChild(msg);
+        return;
+      }
+
+      list.slice(0,60).forEach((item,idx)=>{
+        const card=document.createElement('div');
+        card.className="lib-card";
+        const img=document.createElement('img');
+        img.className="lib-thumb";
+        img.src=item.src;
+        const meta=document.createElement('div');
+        meta.className="lib-meta";
+        meta.innerHTML = `<b>${item.name||"(sem nome)"}</b><span>${item.kind}</span>`;
+
+        card.appendChild(img);
+        card.appendChild(meta);
+
+        card.onclick=()=>{
+          if (!isHost) return;
+
+          if (profileTab==="maps"){
+            // aplicar como mapa
+            applyMapLocal(item.src,true);
+            showNotification("Mapa aplicado!");
+          } else {
+            hostCreateToken(item.src, profileTab==="players" ? "player" : "asset");
+            showNotification("Item colocado na mesa!");
+          }
+        };
+
+        card.oncontextmenu=(ev)=>{
+          ev.preventDefault();
+          if (!isHost) return;
+          if (!confirm(`Remover "${item.name}" do perfil?`)) return;
+
+          profile = loadProfile();
+          profile[profileTab].splice(idx,1);
+          saveProfileObj(profile);
+          renderProfileGrid();
+        };
+
+        grid.appendChild(card);
+      });
+    }
+
+    function exportProfile(){
+      if (!isHost) return;
+      profile = loadProfile();
+      const blob=new Blob([JSON.stringify(profile,null,2)], {type:"application/json"});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download="perfil.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function importProfileFile(event){
+      if (!isHost) return;
+      const file=event.target.files?.[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const obj=JSON.parse(reader.result);
+          if(!obj || typeof obj!=="object") throw new Error("json inválido");
+          localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(obj));
+          profile = loadProfile();
+          renderProfileGrid();
+          showNotification("Perfil importado!");
+        }catch(e){
+          alert("JSON inválido.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value="";
+    }
+
+    // ===== Scenes: capture/apply =====
+    function captureCurrentScene(name){
+      // tokens from state are already normalized; ensure latest from DOM
+      // (host actions keep state sync, but ensure sizes/pos)
+      const tokens = {};
+      document.querySelectorAll('.token').forEach(el=>{
+        const id=el.dataset.uuid;
+        const t=state.tokens[id];
+        if(!t) return;
+
+        tokens[id] = {
+          ...t,
+          x: el.style.left,
+          y: el.style.top,
+          w: Number(el.dataset.sizeW || parseInt(el.style.width)||t.w),
+          h: Number(el.dataset.sizeH || parseInt(el.style.height)||t.h),
+          rotation: Number(el.dataset.rotation||t.rotation||0),
+          flipped: String(el.dataset.flipped||t.flipped||"false"),
+          innerZoom: Number(el.dataset.innerZoom||t.innerZoom||1),
+          locked: String(el.dataset.locked||t.locked||"false"),
+          fitMode: String(el.dataset.fitMode||t.fitMode||"contain"),
+          fogEmitter: (String(el.dataset.fogEmitter||t.fogEmitter) === "true"),
+          visionRadius: Number(el.dataset.visionRadius||t.visionRadius||600),
+          layer: Number(el.dataset.layer||t.layer||1),
+          name: String(el.dataset.name||t.name||""),
+        };
+      });
+
+      const scene = {
+        version: 1,
+        name: name || "Sem nome",
+        savedAt: nowISO(),
+        map: {...state.map},
+        fog: {...state.fog},
+        layerState: JSON.parse(JSON.stringify(layerState)),
+        tokens
+      };
+      return scene;
+    }
+
+    function applyScene(scene, emitNetwork=true){
+      if (!isHost) return;
+
+      // clear DOM tokens + map
+      document.querySelectorAll('.token').forEach(t=>t.remove());
+      mapContainer.innerHTML="";
+      diceLogEntries.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+      selectedToken=null;
+
+      // apply layerState
+      layerState.visible = scene.layerState?.visible || {};
+      layerState.locked  = scene.layerState?.locked  || {};
+
+      // apply state
+      state.map = scene.map || {src:null,locked:false,x:0,y:0};
+      state.fog = scene.fog || {enabled:false,darkness:0.9,softness:0.2};
+      state.tokens = {};
+
+      // map
+      if (state.map.src) applyMapLocal(state.map.src,false);
+      setMapLockLocal(!!state.map.locked,false);
+      setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
+
+      // tokens
+      const tokens = scene.tokens || {};
+      for (const id in tokens){
+        const t = tokens[id];
+        ensureLayerDefaults(Number(t.layer||1));
+        addTokenLocal(t.src, t.type||"image", id, t);
+        state.tokens[id]=normalizeTokenProps(id, t.src, t.type||"image", t);
+      }
+
+      btnFog.classList.toggle('active', !!state.fog.enabled);
+      applyLayerVisibilityToDOM();
+      rebuildLayersPanel();
+      requestFogRedraw();
+      syncInspectorFromSelection();
+      renderSceneList();
+
+      // broadcast SYNC to clients
+      if (emitNetwork){
+        broadcastSYNC();
+      }
+      showNotification(`Cena carregada: ${scene.name}`);
+    }
+
+    // ===== Scenes UI: save/load =====
+    function renderSceneList(){
+      if (!isHost) return;
+      scenesStore = loadScenesStore();
+      const listEl=document.getElementById('scene-list');
+      listEl.innerHTML="";
+
+      if (!scenesStore.order.length){
+        const msg=document.createElement('div');
+        msg.className="mini";
+        msg.style.padding="6px 2px";
+        msg.textContent="Nenhuma cena salva ainda.";
+        listEl.appendChild(msg);
+        return;
+      }
+
+      scenesStore.order.forEach(name=>{
+        const sc=scenesStore.scenes[name];
+        if (!sc) return;
+
+        const row=document.createElement('div');
+        row.className="scene-row";
+        const left=document.createElement('div');
+        left.innerHTML = `<b>${name}</b><span>${(sc.savedAt||"").replace("T"," ").slice(0,19)}</span>`;
+
+        const right=document.createElement('div');
+        right.style.display="flex";
+        right.style.gap="8px";
+        right.style.flexWrap="wrap";
+
+        const btnLoad=document.createElement('div');
+        btnLoad.className="btn";
+        btnLoad.textContent="LOAD";
+        btnLoad.onclick=()=>{
+          if (!confirm(`Carregar cena "${name}"? (vai substituir a mesa atual)`)) return;
+          applyScene(scenesStore.scenes[name], true);
+        };
+
+        const btnExp=document.createElement('div');
+        btnExp.className="btn";
+        btnExp.textContent="EXPORT";
+        btnExp.onclick=()=>{
+          exportScene(name);
+        };
+
+        const btnDel=document.createElement('div');
+        btnDel.className="btn";
+        btnDel.textContent="DEL";
+        btnDel.onclick=()=>{
+          if (!confirm(`Apagar cena "${name}" do navegador?`)) return;
+          delete scenesStore.scenes[name];
+          scenesStore.order = scenesStore.order.filter(n=>n!==name);
+          saveScenesStore(scenesStore);
+          renderSceneList();
+          showNotification("Cena removida.");
+        };
+
+        right.appendChild(btnLoad);
+        right.appendChild(btnExp);
+        right.appendChild(btnDel);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+      });
+    }
+
+    function saveScene(){
+      if (!isHost) return;
+      const name = (document.getElementById('scene-name').value||"").trim();
+      if (!name) return alert("Dê um nome para a cena.");
+
+      const scene = captureCurrentScene(name);
+
+      scenesStore = loadScenesStore();
+      scenesStore.scenes[name] = scene;
+      if (!scenesStore.order.includes(name)) scenesStore.order.unshift(name);
+      saveScenesStore(scenesStore);
+      renderSceneList();
+      showNotification("Cena salva!");
+    }
+
+    function saveSceneAsNew(){
+      if (!isHost) return;
+      let name = (document.getElementById('scene-name').value||"").trim();
+      if (!name) name="Cena";
+      // garante nome único
+      scenesStore=loadScenesStore();
+      let base=name, i=1;
+      while (scenesStore.scenes[name]){ name = `${base} (${i++})`; }
+      document.getElementById('scene-name').value=name;
+
+      const scene = captureCurrentScene(name);
+      scenesStore.scenes[name] = scene;
+      scenesStore.order.unshift(name);
+      saveScenesStore(scenesStore);
+      renderSceneList();
+      showNotification("Cena salva como nova!");
+    }
+
+    function exportScene(name){
+      if (!isHost) return;
+      scenesStore=loadScenesStore();
+      const scene=scenesStore.scenes[name];
+      if(!scene) return;
+      const blob=new Blob([JSON.stringify(scene,null,2)], {type:"application/json"});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`scene_${sanitizeFileName(name)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function exportAll(){
+      if (!isHost) return;
+      scenesStore=loadScenesStore();
+      profile=loadProfile();
+      const payload={
+        version: 1,
+        exportedAt: nowISO(),
+        scenesStore,
+        profile
+      };
+      const blob=new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download="tabletop_backup.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function importAllFile(event){
+      if (!isHost) return;
+      const file=event.target.files?.[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const obj=JSON.parse(reader.result);
+          if(!obj || typeof obj!=="object") throw new Error("inválido");
+          if (obj.scenesStore){
+            localStorage.setItem(LS_SCENES_KEY, JSON.stringify(obj.scenesStore));
+          }
+          if (obj.profile){
+            localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(obj.profile));
+          }
+          scenesStore=loadScenesStore();
+          profile=loadProfile();
+          renderSceneList();
+          renderProfileGrid();
+          showNotification("Importado!");
+        }catch(e){
+          alert("JSON inválido.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value="";
+    }
+
+    function sanitizeFileName(name){
+      return String(name).replace(/[\\/:*?"<>|]+/g,'_').slice(0,80);
+    }
+
+    // ===== Host-only clear/unlock =====
     function clearTable(){
       if (!isHost) return;
       if (!confirm("Deseja limpar todos os tokens e o mapa?")) return;
@@ -1567,7 +2018,6 @@
         const a={type:"UPDATE_PROP", id, prop:"locked", value:"false"};
         applyAction(a,false); broadcastACT(a);
       }
-      // destrava layers também
       for (const l of Object.keys(layerState.locked)){
         const a={type:"LAYER_SET", layer:Number(l), prop:"locked", value:false};
         applyAction(a,false); broadcastACT(a);
@@ -1576,7 +2026,32 @@
       showNotification("Tudo destrancado!");
     }
 
-    // ========= P2P PROTOCOL =========
+    // ===== Click outside: deselect =====
+    viewport.addEventListener('mousedown',(e)=>{
+      if(e.target===viewport || e.target===canvas || e.target===gridLayer){
+        if(selectedToken) selectedToken.classList.remove('selected');
+        selectedToken=null;
+        syncInspectorFromSelection();
+      }
+    });
+
+    // ===== Keyboard shortcuts =====
+    window.addEventListener('keydown',(e)=>{
+      if (!selectedToken) return;
+      if (selectedToken.dataset.locked==="true") return;
+      const layer = Number(selectedToken.dataset.layer||1);
+      if (layerState.locked[layer]) return;
+
+      if (e.key==='Delete'){
+        if (!isHost) return;
+        const id=selectedToken.dataset.uuid;
+        const a={type:"REMOVE_TOKEN", id};
+        applyAction(a,false); broadcastACT(a);
+        selectedToken=null;
+      }
+    });
+
+    // ===== Network protocol =====
     function sendREQ(action){
       if (isHost){
         applyHostAuthorizedAction(action,{sender:myId});
@@ -1586,13 +2061,16 @@
         hostConnection.send({kind:"REQ", sender:myId, action});
       }
     }
-
     function broadcastACT(action, meta={}){
       if (!isHost) return;
       const msg={kind:"ACT", sender:myId, action, meta};
       for (const c of connections){ if (c.open) c.send(msg); }
     }
-
+    function broadcastSYNC(){
+      if (!isHost) return;
+      const msg={kind:"SYNC", sender:myId, state, layerState};
+      for (const c of connections){ if (c.open) c.send(msg); }
+    }
     function sendSYNC(conn){
       if (!isHost) return;
       conn.send({kind:"SYNC", sender:myId, state, layerState});
@@ -1616,27 +2094,24 @@
       }
     }
 
-    // ========= Player validation =========
+    // Player validation: allow move + limited update props on unlocked tokens/layers
     function validateClientAction(action){
       if (!action?.type) return {ok:false,reason:"Ação inválida"};
-
-      // Player pode: MOVE e UPDATE_PROP (sem mexer em layer/fog/map)
       const allowed = new Set(["MOVE","UPDATE_PROP"]);
       if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
 
       const id=action.id;
       if (!id || !state.tokens[id]) return {ok:false,reason:"Token inexistente"};
-
       const tok=state.tokens[id];
+
       const layer=Number(tok.layer||1);
       ensureLayerDefaults(layer);
-
       if (!layerState.visible[layer]) return {ok:false,reason:"Layer oculta"};
       if (layerState.locked[layer]) return {ok:false,reason:"Layer trancada"};
       if (String(tok.locked)==="true") return {ok:false,reason:"Token travado"};
 
       if (action.type==="UPDATE_PROP"){
-        // Player NÃO altera layer / locked / visionRadius por segurança
+        // Player NÃO altera fogEmitter, visionRadius, layer, locked, name etc.
         const allowedProps = new Set(["rotation","flipped","innerZoom","size","fitMode"]);
         if (!allowedProps.has(action.prop)) return {ok:false,reason:"Prop não permitida"};
 
@@ -1660,36 +2135,37 @@
       const fromClient = sender && sender !== myId;
       if (fromClient){
         const v=validateClientAction(action);
-        if (!v.ok){ console.warn("REQ negada:", v.reason, action); return; }
+        if (!v.ok){
+          console.warn("REQ negada:", v.reason, action);
+          return;
+        }
       }
       applyAction(action,false);
       broadcastACT(action,{approvedBy:myId, originalSender:sender});
     }
 
-    // ========= APPLY ACTION =========
+    // ===== Apply actions =====
     function applyAction(action){
       switch(action.type){
         case "CLEAR":{
-          // DOM
           document.querySelectorAll('.token').forEach(t=>t.remove());
           mapContainer.innerHTML="";
-          document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+          diceLogEntries.querySelectorAll('.dice-entry').forEach(l => l.remove());
           selectedToken=null;
           stopMapInertia();
-          mapDragging=false;
 
-          // State
           state.map={src:null,locked:false,x:0,y:0};
           state.tokens={};
-          state.fog.activeTokenId=null;
+          state.fog.enabled=false;
 
-          // LayerState mantém visibilidade, mas como layers somem, painéis ficam vazios
           setMapLockLocal(false,false);
           setMapOffset(0,0);
 
+          btnFog.classList.remove('active');
+
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          drawFog();
+          requestFogRedraw();
           syncInspectorFromSelection();
           break;
         }
@@ -1699,12 +2175,10 @@
           applyMapLocal(action.src,false);
           break;
         }
-
         case "MAP_LOCK":{
           setMapLockLocal(!!action.locked,false);
           break;
         }
-
         case "MAP_MOVE":{
           setMapOffset(Number(action.x||0), Number(action.y||0));
           break;
@@ -1714,10 +2188,7 @@
           const {id, src, contentType, props} = action;
           addTokenLocal(src, contentType, id, props);
           state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
-
-          // Se não existe layer defaults, cria
           ensureLayerDefaults(Number(props?.layer ?? 1));
-
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
           requestFogRedraw();
@@ -1746,6 +2217,7 @@
           updateTokenPropDOM(action.id, action.prop, action.value);
           if (state.tokens[action.id]){
             const t=state.tokens[action.id];
+            if (action.prop==="name") t.name=String(action.value||"");
             if (action.prop==="locked") t.locked=String(action.value);
             if (action.prop==="innerZoom") t.innerZoom=action.value;
             if (action.prop==="rotation") t.rotation=action.value;
@@ -1753,6 +2225,7 @@
             if (action.prop==="fitMode") t.fitMode=action.value;
             if (action.prop==="size"){ t.w=action.value.w; t.h=action.value.h; }
             if (action.prop==="layer"){ t.layer=Number(action.value); ensureLayerDefaults(Number(action.value)); }
+            if (action.prop==="fogEmitter"){ t.fogEmitter=!!action.value; }
             if (action.prop==="visionRadius"){ t.visionRadius=Number(action.value); }
           }
           rebuildLayersPanel();
@@ -1781,14 +2254,11 @@
             state.fog.enabled = !!action.value;
             btnFog.classList.toggle('active', state.fog.enabled);
           }
-          if (action.prop==="activeTokenId"){
-            state.fog.activeTokenId = action.value || null;
+          if (action.prop==="darkness"){
+            state.fog.darkness = clamp(Number(action.value), 0.1, 0.98);
           }
           if (action.prop==="softness"){
-            state.fog.softness = Number(action.value);
-          }
-          if (action.prop==="darkness"){
-            state.fog.darkness = Number(action.value);
+            state.fog.softness = clamp(Number(action.value), 0.02, 0.6);
           }
           requestFogRedraw();
           break;
@@ -1797,10 +2267,10 @@
     }
 
     function applyFullSync(s, ls){
-      // limpa DOM
+      // clear DOM
       document.querySelectorAll('.token').forEach(t=>t.remove());
       mapContainer.innerHTML="";
-      document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+      diceLogEntries.querySelectorAll('.dice-entry').forEach(l=>l.remove());
       selectedToken=null;
       stopMapInertia();
 
@@ -1810,7 +2280,7 @@
 
       // state
       state.map = JSON.parse(JSON.stringify(s?.map || {src:null,locked:false,x:0,y:0}));
-      state.fog = JSON.parse(JSON.stringify(s?.fog || {enabled:false,activeTokenId:null,softness:0.18,darkness:0.88}));
+      state.fog = JSON.parse(JSON.stringify(s?.fog || {enabled:false,darkness:0.9,softness:0.2}));
       state.tokens = {};
 
       if (state.map.src) applyMapLocal(state.map.src,false);
@@ -1821,8 +2291,8 @@
       for (const id of Object.keys(tokens)){
         const t=tokens[id];
         ensureLayerDefaults(Number(t.layer||1));
-        addTokenLocal(t.src, t.type, id, t);
-        state.tokens[id]=JSON.parse(JSON.stringify(t));
+        addTokenLocal(t.src, t.type||"image", id, t);
+        state.tokens[id]=normalizeTokenProps(id,t.src,t.type||"image",t);
       }
 
       btnFog.classList.toggle('active', !!state.fog.enabled);
@@ -1830,10 +2300,13 @@
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
       syncInspectorFromSelection();
-      drawFog();
+      requestFogRedraw();
     }
 
-    // ========= NETWORK SETUP =========
+    // ===== Context menu off =====
+    window.addEventListener('contextmenu',(e)=>e.preventDefault());
+
+    // ===== Network init =====
     function initNetwork(){
       const urlParams=new URLSearchParams(window.location.search);
       const roomID=urlParams.get('room');
@@ -1859,12 +2332,22 @@
           statusDot.classList.add('online');
           toggleNetworkPanel();
 
+          // load UI stores
+          renderSceneList();
+          renderProfileGrid();
+          rebuildLayersPanel();
+
           peer.on('connection',(conn)=>{
             connections.push(conn);
             setupConnection(conn);
             conn.on('open',()=>setTimeout(()=>sendSYNC(conn),200));
             conn.on('close',()=>{ connections=connections.filter(c=>c!==conn); });
           });
+        }
+
+        // players also can render lists? no.
+        if (!isHost){
+          renderProfileGrid(); // optional empty
         }
       });
 
@@ -1898,12 +2381,23 @@
       conn.on('data',(data)=>handleNetworkData(data, conn.peer));
     }
 
-    // ========= CONTEXT MENU OFF =========
-    window.addEventListener('contextmenu',(e)=>e.preventDefault());
-
-    // ========= START =========
+    // ===== Start =====
     initNetwork();
 
+    // initial render for host when sidebar opens
+    // (host render called on peer open)
+  </script>
+
+  <script>
+    // ===== Remove "token-controls": players still can interact by direct manipulations allowed. =====
+    // NOTE: Player actions are only MOVE/UPDATE_PROP for allowed props via REQ.
+    // Since we removed token-controls, players can only MOVE and resize via Ctrl+Wheel / handle (if unlocked).
+    // Host uses Inspector for all settings.
+
+    // ===== Player optional adjustments (rotation/zoom/fit) =====
+    // Without token-controls, players don't have UI for these. That's intended.
+    // If you quiser depois: podemos colocar atalhos de teclado pro player (ex: R/E para rotacionar),
+    // mas você pediu "somente inspector", então mantive assim.
   </script>
 </body>
 </html>
