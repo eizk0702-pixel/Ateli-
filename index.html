@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - Online P2P (Host Autoritativo)</title>
+  <title>Tabletop Luxury - Online P2P (Host Autoritativo + Cenas Save/Load)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -354,7 +354,6 @@
     }
     #notification.active { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-    /* Badge Host/Player */
     #role-badge {
       position: fixed;
       top: 140px;
@@ -384,6 +383,7 @@
       <button class="btn-luxury" id="btn-d6" onclick="rollDice(6)">D6</button>
       <button class="btn-luxury" onclick="toggleGrid()">Grelha</button>
       <button class="btn-luxury" id="btn-lock-all" onclick="unlockEverything()">🔓 Destrancar</button>
+      <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -396,6 +396,43 @@
       <span id="status-text">Offline</span>
       <div class="h-4 w-px bg-white/20 mx-2"></div>
       <button class="btn-luxury py-0 px-2 text-[10px]" onclick="copyInviteLink()" id="btn-invite">🔗 Copiar Convite</button>
+    </div>
+
+    <!-- Painel de Cenas (HOST) -->
+    <div class="network-status" id="scene-panel" style="top: 120px;">
+      <span style="color: var(--gold); font-weight:700;">Cenas</span>
+      <div class="h-4 w-px bg-white/20 mx-2"></div>
+
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="embed-remote" checked>
+        Embutir URLs
+      </label>
+
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="compress-images" checked>
+        Comprimir
+      </label>
+
+      <select id="max-dim" class="url-field" style="margin:0; padding:6px; width:95px;">
+        <option value="1024">1024px</option>
+        <option value="1536">1536px</option>
+        <option value="2048" selected>2048px</option>
+        <option value="3072">3072px</option>
+        <option value="4096">4096px</option>
+      </select>
+
+      <input id="quality" type="range" min="0.4" max="0.95" step="0.05" value="0.75" style="width:90px;">
+      <span id="quality-label" style="font-size:10px;opacity:.8;">Q 0.75</span>
+
+      <span id="scene-size" style="font-size:10px;opacity:.8; margin-left:6px;">~ -</span>
+
+      <div class="h-4 w-px bg-white/20 mx-2"></div>
+
+      <button class="btn-luxury py-0 px-2 text-[10px]" onclick="saveSceneToFile()">Salvar .JSON</button>
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer">
+        Carregar .JSON
+        <input type="file" id="scene-file" accept="application/json" style="display:none" onchange="loadSceneFromFile(event)">
+      </label>
     </div>
 
     <div class="sidebar hud-element" id="sidebar">
@@ -412,7 +449,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Dica: imagens locais viram dataURL e podem ficar pesadas. Se travar, use URL direta.
+            Dica: imagens locais viram dataURL. Se ficar pesado, use compressão no Save de Cena.
           </p>
         </div>
 
@@ -425,7 +462,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('token-url', 'pc')">Adicionar Peça</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Jogadores conectados verão suas ações em tempo real (host autoritativo).
+            Players só movem tokens destravados. Ações passam pelo Host (autoridade).
           </p>
         </div>
 
@@ -457,10 +494,10 @@
   <script>
     /********************************************************************
      * MODELO: HOST AUTORITATIVO
-     * - Player envia REQUEST_ACTION
-     * - Host valida e aplica
-     * - Host envia BROADCAST_ACTION
-     * - Clients aplicam apenas BROADCAST_ACTION
+     * - Player envia REQUEST (kind="REQ")
+     * - Host valida, aplica e BROADCAST (kind="ACT")
+     * - Clients aplicam apenas ACT
+     * - Host manda SYNC ao conectar (kind="SYNC")
      ********************************************************************/
 
     // --- UTILITÁRIOS ---
@@ -476,11 +513,12 @@
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const networkPanel = document.getElementById('network-panel');
+    const scenePanel = document.getElementById('scene-panel');
     const roleText = document.getElementById('role-text');
     const tinyStatus = document.getElementById('tiny-status');
     const tinyRoom = document.getElementById('tiny-room');
 
-    // Botões/áreas host-only
+    // Host-only UI
     const hostOnlyMap = document.getElementById('host-only-map');
     const hostOnlyTokens = document.getElementById('host-only-tokens');
     const hostOnlyClear = document.getElementById('host-only-clear');
@@ -489,6 +527,7 @@
     const btnInvite = document.getElementById('btn-invite');
     const btnD20 = document.getElementById('btn-d20');
     const btnD6 = document.getElementById('btn-d6');
+    const btnSaveScene = document.getElementById('btn-save-scene');
 
     // --- CÂMERA ---
     let scale = 1;
@@ -500,7 +539,7 @@
     // --- SELEÇÃO ---
     let selectedToken = null;
 
-    // --- ESTADO (HOST mantém autoritativo) ---
+    // --- ESTADO (Host mantém) ---
     const state = {
       mapSrc: null,
       mapLocked: false,
@@ -509,12 +548,12 @@
 
     // --- REDE / PEERJS ---
     let peer;
-    let connections = [];      // host -> lista de clients
-    let hostConnection = null; // client -> host
+    let connections = [];
+    let hostConnection = null;
     let myId = null;
     let isHost = false;
 
-    // Config ICE (STUN). Você pode adicionar TURN aqui depois.
+    // ICE servers (STUN). Você pode adicionar TURN depois.
     const PEER_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -528,6 +567,13 @@
     function toggleSidebar() { sidebar.classList.toggle('open'); }
     function toggleGrid() { gridLayer.style.display = gridLayer.style.display === 'none' ? 'block' : 'none'; }
     function toggleNetworkPanel() { networkPanel.classList.toggle('show'); }
+
+    function openScenePanel() {
+      if (!isHost) return alert("Apenas o Host pode salvar/carregar cenas.");
+      scenePanel.classList.toggle('show');
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
 
     function showNotification(msg) {
       const notif = document.getElementById('notification');
@@ -575,19 +621,17 @@
 
     function setRoleUI() {
       roleText.textContent = isHost ? "HOST (Mestre)" : "PLAYER";
-      // Host-only UI
+
       hostOnlyMap.style.display = isHost ? "" : "none";
       hostOnlyTokens.style.display = isHost ? "" : "none";
       hostOnlyClear.style.display = isHost ? "" : "none";
       btnLockAll.style.display = isHost ? "" : "none";
       btnLockMap.style.display = isHost ? "" : "none";
       btnInvite.style.display = isHost ? "" : "none";
-
-      // Dados (opção: só host)
       btnD20.style.display = isHost ? "" : "none";
       btnD6.style.display = isHost ? "" : "none";
-
-      // Sidebar abre/fecha igual para ambos (ok)
+      if (btnSaveScene) btnSaveScene.style.display = isHost ? "" : "none";
+      if (scenePanel) scenePanel.style.display = isHost ? "" : "none";
     }
 
     // =============== Transform / Pan / Zoom ===============
@@ -631,13 +675,9 @@
     window.addEventListener('mouseup', () => { isPanning = false; viewport.style.cursor = 'grab'; });
 
     // =============== Protocolo de Mensagens ===============
-    // kind:
-    // - "REQ": client -> host (pedido)
-    // - "ACT": host -> all (ação autorizada)
-    // - "SYNC": host -> client (estado completo)
+    // kind: "REQ" (client->host), "ACT" (host->all), "SYNC" (host->client)
     function sendREQ(action) {
       if (isHost) {
-        // host não manda req pra si; aplica direto
         applyHostAuthorizedAction(action, { sender: myId });
         return;
       }
@@ -661,33 +701,27 @@
       if (!data || !data.kind) return;
 
       if (data.kind === "SYNC") {
-        // client aplica estado completo
         applyFullSync(data.state);
         return;
       }
 
       if (data.kind === "ACT") {
-        // clients aplicam ações autorizadas pelo host
         applyAction(data.action, true);
         return;
       }
 
       if (data.kind === "REQ") {
-        // só host processa
         if (!isHost) return;
         const sender = data.sender || connPeerId || "unknown";
         const action = data.action;
-        // valida e, se ok, aplica e broadcast
         applyHostAuthorizedAction(action, { sender });
       }
     }
 
-    // =============== Validação de Permissões (HOST) ===============
+    // =============== Validação (HOST) ===============
     function validateClientAction(action, sender) {
-      // Host pode tudo
       if (!action || !action.type) return { ok: false, reason: "Ação inválida" };
 
-      // Regras: client só pode mexer em token destravado (move/props)
       const allowedClientTypes = new Set(["MOVE", "UPDATE_PROP"]);
       if (!allowedClientTypes.has(action.type)) return { ok: false, reason: "Ação não permitida para player" };
 
@@ -697,58 +731,45 @@
       const tok = state.tokens[tokenId];
       if (String(tok.locked) === "true") return { ok: false, reason: "Token travado" };
 
-      // UPDATE_PROP permitido somente props específicas
       if (action.type === "UPDATE_PROP") {
         const allowedProps = new Set(["rotation", "flipped", "innerZoom", "size"]);
         if (!allowedProps.has(action.prop)) return { ok: false, reason: "Propriedade não permitida" };
       }
 
-      // Se quiser, dá pra adicionar whitelist por player aqui
       return { ok: true };
     }
 
-    // Host recebe REQ -> valida -> aplica local -> broadcast ACT
     function applyHostAuthorizedAction(action, { sender }) {
       if (!action || !action.type) return;
 
-      // Se a ação veio do host (botões do host), pula validação de client
       const cameFromClient = sender && sender !== myId;
 
       if (cameFromClient) {
         const v = validateClientAction(action, sender);
         if (!v.ok) {
-          // opcional: log
           console.warn("REQ negada:", v.reason, action);
           return;
         }
       }
 
-      // aplica no host e atualiza state
       applyAction(action, false);
-
-      // broadcast para todos (inclui efeito “eco” para outros clients)
       broadcastACT(action, { approvedBy: myId, originalSender: sender });
     }
 
-    // =============== Apply Action (Host e Clients) ===============
+    // =============== Apply Action ===============
     function applyAction(action, fromNetwork) {
       switch (action.type) {
         case "MOVE": {
           const { id, x, y } = action;
-          // aplica no DOM
           moveTokenDOM(id, x, y);
-          // atualiza state (host)
-          if (isHost) {
-            if (state.tokens[id]) {
-              state.tokens[id].x = x;
-              state.tokens[id].y = y;
-            }
+          if (isHost && state.tokens[id]) {
+            state.tokens[id].x = x;
+            state.tokens[id].y = y;
           }
           break;
         }
 
         case "CREATE_TOKEN": {
-          // Host cria e sincroniza
           const { id, src, contentType, props } = action;
           addTokenLocal(src, contentType, id, props);
           if (isHost) {
@@ -793,7 +814,7 @@
 
         case "DICE": {
           const { faces, result } = action;
-          showDiceLog(faces, result, false);
+          showDiceLog(faces, result);
           break;
         }
 
@@ -806,41 +827,34 @@
           }
           break;
         }
-
-        case "SYNC_STATE": {
-          // (não usamos; temos kind SYNC)
-          break;
-        }
       }
     }
 
-    // =============== Sync State (Client) ===============
+    // =============== Sync (Client) ===============
     function applyFullSync(s) {
       if (!s) return;
 
-      // Limpa DOM
       document.querySelectorAll('.token').forEach(t => t.remove());
       mapContainer.innerHTML = "";
       document.querySelectorAll('.dice-entry').forEach(l => l.remove());
       selectedToken = null;
 
-      // Aplica mapa
       if (s.mapSrc) applyMapLocal(s.mapSrc, false);
       setMapLockLocal(!!s.mapLocked, false);
 
-      // Aplica tokens
       const tokens = s.tokens || {};
       Object.keys(tokens).forEach(id => {
         const t = tokens[id];
         addTokenLocal(t.src, t.type, id, t);
       });
 
-      // Client não mantém state autoritativo (mas guardamos uma cópia útil)
       if (!isHost) {
         state.mapSrc = s.mapSrc || null;
         state.mapLocked = !!s.mapLocked;
         state.tokens = JSON.parse(JSON.stringify(tokens));
       }
+
+      updateSceneSizeEstimate();
     }
 
     // =============== PeerJS Setup ===============
@@ -850,8 +864,6 @@
 
       peer = new Peer(null, {
         debug: 2,
-        // Se quiser usar peer server próprio depois:
-        // host: "SEU_HOST", port: 443, path: "/peerjs",
         config: PEER_ICE_CONFIG
       });
 
@@ -859,7 +871,6 @@
         myId = id;
 
         if (roomID) {
-          // Client
           isHost = false;
           setRoleUI();
           statusText.innerText = "Conectando ao Host...";
@@ -867,7 +878,6 @@
           tinyRoom.textContent = roomID;
           connectToHost(roomID);
         } else {
-          // Host
           isHost = true;
           setRoleUI();
           statusText.innerText = "Online (Host)";
@@ -881,7 +891,6 @@
             setupConnection(conn);
 
             conn.on('open', () => {
-              // manda SYNC quando abrir
               setTimeout(() => sendSYNC(conn), 200);
             });
 
@@ -922,7 +931,7 @@
       conn.on('data', (data) => handleNetworkData(data, conn.peer));
     }
 
-    // =============== Mapa (Host-only UI, mas clients aplicam ACT) ===============
+    // =============== Mapa ===============
     let mapLocked = false;
 
     function setMapLockLocal(lock, emit) {
@@ -937,7 +946,6 @@
       }
 
       if (emit) {
-        // Host-only
         if (!isHost) return;
         const action = { type: "MAP_LOCK", locked: mapLocked };
         applyAction(action, false);
@@ -955,7 +963,6 @@
       img.onload = () => {
         mapContainer.innerHTML = '';
         mapContainer.appendChild(img);
-        // Centralizar
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
         posX = window.innerWidth / 2 - (img.width * scale) / 2;
         posY = window.innerHeight / 2 - (img.height * scale) / 2;
@@ -991,6 +998,7 @@
           document.getElementById(inputId).value = "";
         }
       }
+      updateSceneSizeEstimate();
     }
 
     function importAsset(event, type) {
@@ -1003,6 +1011,7 @@
         const dataUrl = e.target.result;
         if (type === 'map') applyMapLocal(dataUrl, true);
         else hostCreateToken(dataUrl, 'image');
+        updateSceneSizeEstimate();
       };
       reader.readAsDataURL(file);
     }
@@ -1029,7 +1038,6 @@
       if (!isHost) return;
 
       const id = generateUUID();
-      // posição central
       const width = (contentType === 'web') ? 400 : 120;
       const height = (contentType === 'web') ? 225 : 120;
 
@@ -1050,10 +1058,10 @@
       const action = { type: "CREATE_TOKEN", id, src, contentType, props };
       applyAction(action, false);
       broadcastACT(action);
+      updateSceneSizeEstimate();
     }
 
     function addTokenLocal(src, contentType, id, props) {
-      // evita duplicar
       if (document.getElementById(`token-${id}`)) return;
 
       const token = document.createElement('div');
@@ -1068,7 +1076,6 @@
       token.style.width = width + "px";
       token.style.height = height + "px";
 
-      // Posição
       if (props?.x != null && props?.y != null) {
         token.style.left = props.x;
         token.style.top = props.y;
@@ -1129,10 +1136,8 @@
       token.appendChild(controls);
       canvas.appendChild(token);
 
-      // aplica transform
       setTimeout(() => updateImgTransform(token), 10);
 
-      // Mouse wheel resize (ctrl+wheel) — permitido só se destravado e se host OU se player (vira REQUEST)
       token.addEventListener('wheel', (e) => {
         if (!e.ctrlKey) return;
         if (token.dataset.locked === "true") return;
@@ -1142,7 +1147,6 @@
         if (isHost) {
           resizeTokenDirect(token, delta, true);
         } else {
-          // player pede pro host
           const startW = parseInt(token.dataset.sizeW);
           const startH = parseInt(token.dataset.sizeH);
           const ratio = startH / startW;
@@ -1152,7 +1156,6 @@
         }
       }, { passive: false });
 
-      // Resize handle (drag) — host aplica direto; player manda REQ no mouseup (pra não spammar)
       handle.addEventListener('mousedown', (e) => {
         if (token.dataset.locked === "true") return;
         e.stopPropagation(); e.preventDefault();
@@ -1170,7 +1173,6 @@
           pendingW = Math.round(w);
           pendingH = Math.round(h);
 
-          // preview local (optimista)
           token.dataset.sizeW = pendingW;
           token.dataset.sizeH = pendingH;
           token.style.width = pendingW + "px";
@@ -1182,10 +1184,10 @@
           document.removeEventListener('mouseup', onUp);
 
           if (isHost) {
-            // host confirma e broadcast
             const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: pendingW, h: pendingH } };
             applyAction(action, false);
             broadcastACT(action);
+            updateSceneSizeEstimate();
           } else {
             sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: pendingW, h: pendingH } });
           }
@@ -1195,7 +1197,6 @@
         document.addEventListener('mouseup', onUp);
       });
 
-      // Drag token — permitido se destravado
       token.addEventListener('mousedown', (e) => {
         if (e.button !== 0 || e.altKey) return;
         if (token.dataset.locked === "true") return;
@@ -1210,6 +1211,7 @@
       const t = document.getElementById(`token-${id}`);
       if (t) t.remove();
       if (selectedToken && selectedToken.dataset.uuid === id) selectedToken = null;
+      updateSceneSizeEstimate();
     }
 
     function moveTokenDOM(id, x, y) {
@@ -1218,7 +1220,6 @@
       token.style.left = x;
       token.style.top = y;
 
-      // se for client, mantém cópia local também
       if (!isHost && state.tokens[id]) {
         state.tokens[id].x = x; state.tokens[id].y = y;
       }
@@ -1255,7 +1256,6 @@
         token.dataset.sizeH = value.h;
       }
 
-      // client espelha no state local (cópia)
       if (!isHost && state.tokens[id]) {
         if (prop === "locked") state.tokens[id].locked = String(value);
         if (prop === "innerZoom") state.tokens[id].innerZoom = value;
@@ -1263,6 +1263,8 @@
         if (prop === "flipped") state.tokens[id].flipped = value;
         if (prop === "size") { state.tokens[id].w = value.w; state.tokens[id].h = value.h; }
       }
+
+      updateSceneSizeEstimate();
     }
 
     function updateImgTransform(token) {
@@ -1300,7 +1302,6 @@
           newY = Math.round(newY / 50) * 50;
         }
 
-        // preview local
         token.style.left = newX + 'px';
         token.style.top = newY + 'px';
       }
@@ -1320,39 +1321,38 @@
           applyAction(action, false);
           broadcastACT(action);
         } else {
-          // player pede; host valida locked antes de publicar
           sendREQ({ type: "MOVE", id, x, y });
         }
+
+        updateSceneSizeEstimate();
       }
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     }
 
-    // Host-only: destrancar tudo (pode virar feature: broadcast unlock individual etc.)
     function unlockEverything() {
       if (!isHost) return;
-      // destranca tokens
       document.querySelectorAll('.token.locked').forEach(t => {
         const id = t.dataset.uuid;
         const action = { type: "UPDATE_PROP", id, prop: "locked", value: "false" };
         applyAction(action, false);
         broadcastACT(action);
       });
-      // destranca mapa
       if (mapLocked) setMapLockLocal(false, true);
+      updateSceneSizeEstimate();
     }
 
-    // Token controls (agora com regra host/req)
     window.lockToken = (e) => {
       e.stopPropagation();
       const token = e.target.closest('.token');
       const id = token.dataset.uuid;
+      if (!isHost) return;
 
-      if (!isHost) return; // só host trava/destrava
       const action = { type: "UPDATE_PROP", id, prop: "locked", value: "true" };
       applyAction(action, false);
       broadcastACT(action);
+      updateSceneSizeEstimate();
     };
 
     window.zoomInnerToken = (e, delta) => {
@@ -1370,6 +1370,7 @@
       } else {
         sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "innerZoom", value: currentZoom });
       }
+      updateSceneSizeEstimate();
     };
 
     window.flipToken = (token) => {
@@ -1383,6 +1384,7 @@
       } else {
         sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "flipped", value: newVal });
       }
+      updateSceneSizeEstimate();
     };
 
     window.rotateToken = (e, deg) => {
@@ -1399,22 +1401,22 @@
       } else {
         sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "rotation", value: newVal });
       }
+      updateSceneSizeEstimate();
     };
 
     window.deleteToken = (e) => {
       e.stopPropagation();
       const token = e.target.closest('.token');
       if (!token) return;
-
       const id = token.dataset.uuid;
 
-      if (!isHost) return; // só host deleta
+      if (!isHost) return;
       const action = { type: "REMOVE_TOKEN", id };
       applyAction(action, false);
       broadcastACT(action);
+      updateSceneSizeEstimate();
     };
 
-    // Resize helper (host)
     function resizeTokenDirect(token, amount, emit) {
       let w = parseInt(token.dataset.sizeW) + amount;
       w = Math.max(40, Math.min(w, 2500));
@@ -1430,6 +1432,7 @@
       } else {
         updateTokenPropDOM(id, "size", action.value);
       }
+      updateSceneSizeEstimate();
     }
 
     // =============== Teclas ===============
@@ -1440,12 +1443,13 @@
       if (e.key.toLowerCase() === 'f') flipToken(selectedToken);
 
       if (e.key === 'Delete') {
-        if (!isHost) return; // só host
+        if (!isHost) return;
         const id = selectedToken.dataset.uuid;
         const action = { type: "REMOVE_TOKEN", id };
         applyAction(action, false);
         broadcastACT(action);
         selectedToken = null;
+        updateSceneSizeEstimate();
       }
     });
 
@@ -1460,8 +1464,6 @@
     function rollDice(faces) {
       if (!isHost) return;
       const res = Math.floor(Math.random() * faces) + 1;
-
-      // host aplica e broadcast
       const action = { type: "DICE", faces, result: res };
       applyAction(action, false);
       broadcastACT(action);
@@ -1483,6 +1485,7 @@
       const action = { type: "CLEAR" };
       applyAction(action, false);
       broadcastACT(action);
+      updateSceneSizeEstimate();
     }
 
     function clearTableLocal() {
@@ -1494,11 +1497,297 @@
       mapContainer.classList.remove('locked');
     }
 
+    // ===============================
+    // CENAS (SAVE/LOAD por ARQUIVO) + EMBUTIR + COMPRESSÃO + ESTIMATIVA
+    // ===============================
+
+    function byteLengthOfString(str) { return new Blob([str]).size; }
+
+    function prettyBytes(bytes) {
+      const units = ["B", "KB", "MB", "GB"];
+      let i = 0;
+      let num = bytes;
+      while (num >= 1024 && i < units.length - 1) { num /= 1024; i++; }
+      return `${num.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+    }
+
+    function blobToDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    }
+
+    async function tryFetchAsBlob(url) {
+      try {
+        const resp = await fetch(url, { mode: "cors" });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const blob = await resp.blob();
+        return blob;
+      } catch {
+        return null;
+      }
+    }
+
+    async function tryFetchAsDataURL(url) {
+      const blob = await tryFetchAsBlob(url);
+      if (!blob) return null;
+      if (!blob.type.startsWith("image/")) return null;
+      return await blobToDataURL(blob);
+    }
+
+    async function compressBlobToWebP(blob, maxDim, quality) {
+      try {
+        const bmp = await createImageBitmap(blob);
+        const w = bmp.width, h = bmp.height;
+
+        const scale = Math.min(1, maxDim / Math.max(w, h));
+        const nw = Math.max(1, Math.round(w * scale));
+        const nh = Math.max(1, Math.round(h * scale));
+
+        const c = document.createElement("canvas");
+        c.width = nw;
+        c.height = nh;
+        const ctx = c.getContext("2d", { alpha: true });
+        ctx.drawImage(bmp, 0, 0, nw, nh);
+
+        const outBlob = await new Promise((resolve) => {
+          c.toBlob((b) => resolve(b), "image/webp", quality);
+        });
+
+        if (!outBlob) return null;
+        return await blobToDataURL(outBlob);
+      } catch {
+        return null;
+      }
+    }
+
+    async function compressDataURLToWebP(dataUrl, maxDim, quality) {
+      try {
+        const resp = await fetch(dataUrl);
+        const blob = await resp.blob();
+        if (!blob.type.startsWith("image/")) return null;
+        return await compressBlobToWebP(blob, maxDim, quality);
+      } catch {
+        return null;
+      }
+    }
+
+    async function compressImageSrcIfPossible(src, maxDim, quality) {
+      if (typeof src === "string" && src.startsWith("http")) {
+        const blob = await tryFetchAsBlob(src);
+        if (!blob || !blob.type.startsWith("image/")) return src;
+        const webp = await compressBlobToWebP(blob, maxDim, quality);
+        return webp || src;
+      }
+      if (typeof src === "string" && src.startsWith("data:image")) {
+        const webp = await compressDataURLToWebP(src, maxDim, quality);
+        return webp || src;
+      }
+      return src;
+    }
+
+    function estimatePayloadSizeBytes(payload) {
+      try {
+        const json = JSON.stringify(payload);
+        return byteLengthOfString(json);
+      } catch {
+        return 0;
+      }
+    }
+
+    function updateQualityLabel() {
+      const q = document.getElementById("quality");
+      const label = document.getElementById("quality-label");
+      if (q && label) label.textContent = `Q ${Number(q.value).toFixed(2)}`;
+    }
+
+    function updateSceneSizeEstimate() {
+      if (!isHost) return;
+      const payload = {
+        version: 3,
+        savedAt: new Date().toISOString(),
+        mapSrc: state.mapSrc || null,
+        mapLocked: !!state.mapLocked,
+        tokens: state.tokens || {}
+      };
+      const bytes = estimatePayloadSizeBytes(payload);
+      const el = document.getElementById("scene-size");
+      if (el) el.textContent = `~ ${prettyBytes(bytes)}`;
+    }
+
+    function initSceneUIHooks() {
+      const q = document.getElementById("quality");
+      const md = document.getElementById("max-dim");
+      const ci = document.getElementById("compress-images");
+      const er = document.getElementById("embed-remote");
+
+      if (q) q.addEventListener("input", () => { updateQualityLabel(); });
+      if (q) q.addEventListener("change", () => { updateSceneSizeEstimate(); });
+      if (md) md.addEventListener("change", () => { updateSceneSizeEstimate(); });
+      if (ci) ci.addEventListener("change", () => { updateSceneSizeEstimate(); });
+      if (er) er.addEventListener("change", () => { updateSceneSizeEstimate(); });
+
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
+
+    async function buildScenePayloadSelfContained() {
+      if (!isHost) return null;
+
+      const embedRemote = !!document.getElementById("embed-remote")?.checked;
+      const compress = !!document.getElementById("compress-images")?.checked;
+      const maxDim = parseInt(document.getElementById("max-dim")?.value || "2048", 10);
+      const quality = parseFloat(document.getElementById("quality")?.value || "0.75");
+
+      const payload = {
+        version: 3,
+        savedAt: new Date().toISOString(),
+        mapSrc: state.mapSrc || null,
+        mapLocked: !!state.mapLocked,
+        tokens: JSON.parse(JSON.stringify(state.tokens || {}))
+      };
+
+      // MAPA
+      if (payload.mapSrc && typeof payload.mapSrc === "string") {
+        if (embedRemote && payload.mapSrc.startsWith("http")) {
+          const dataUrl = await tryFetchAsDataURL(payload.mapSrc);
+          if (dataUrl) payload.mapSrc = dataUrl;
+        }
+        if (compress && (payload.mapSrc.startsWith("data:image") || payload.mapSrc.startsWith("http"))) {
+          payload.mapSrc = await compressImageSrcIfPossible(payload.mapSrc, maxDim, quality);
+        }
+      }
+
+      // TOKENS
+      const ids = Object.keys(payload.tokens || {});
+      for (const id of ids) {
+        const t = payload.tokens[id];
+        if (!t || !t.src) continue;
+
+        // Embutir URL (se possível)
+        if (embedRemote && typeof t.src === "string" && t.src.startsWith("http")) {
+          const dataUrl = await tryFetchAsDataURL(t.src);
+          if (dataUrl) t.src = dataUrl;
+        }
+
+        // Comprimir só imagens
+        if (compress && t.type === "image") {
+          t.src = await compressImageSrcIfPossible(t.src, maxDim, quality);
+        }
+      }
+
+      return payload;
+    }
+
+    function hostLoadScenePayload(payload) {
+      if (!isHost) return;
+
+      if (!payload || typeof payload !== "object") {
+        alert("Arquivo de cena inválido.");
+        return;
+      }
+
+      const tokens = payload.tokens && typeof payload.tokens === "object" ? payload.tokens : {};
+      const mapSrc = payload.mapSrc || null;
+      const mapLockedVal = !!payload.mapLocked;
+
+      // 1) Limpa
+      const clearAction = { type: "CLEAR" };
+      applyAction(clearAction, false);
+      broadcastACT(clearAction);
+
+      // 2) Mapa
+      if (mapSrc) {
+        const mapAction = { type: "MAP_UPDATE", src: mapSrc };
+        applyAction(mapAction, false);
+        broadcastACT(mapAction);
+      }
+
+      // 3) Trava do mapa
+      const mapLockAction = { type: "MAP_LOCK", locked: mapLockedVal };
+      applyAction(mapLockAction, false);
+      broadcastACT(mapLockAction);
+
+      // 4) Tokens
+      Object.keys(tokens).forEach((id) => {
+        const t = tokens[id];
+        if (!t || !t.src || !t.type) return;
+
+        const props = {
+          x: t.x ?? "0px",
+          y: t.y ?? "0px",
+          w: t.w ?? 120,
+          h: t.h ?? 120,
+          rotation: t.rotation ?? 0,
+          flipped: t.flipped ?? "false",
+          innerZoom: t.innerZoom ?? 1,
+          locked: t.locked ?? "false"
+        };
+
+        const createAction = {
+          type: "CREATE_TOKEN",
+          id,
+          src: t.src,
+          contentType: t.type,
+          props
+        };
+        applyAction(createAction, false);
+        broadcastACT(createAction);
+      });
+
+      showNotification("Cena carregada!");
+      updateSceneSizeEstimate();
+    }
+
+    async function saveSceneToFile() {
+      if (!isHost) return alert("Apenas o Host pode salvar cenas.");
+
+      showNotification("Salvando (compactando)...");
+      const payload = await buildScenePayloadSelfContained();
+      if (!payload) return;
+
+      const json = JSON.stringify(payload);
+      const blob = new Blob([json], { type: "application/json" });
+
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = URL.createObjectURL(blob);
+      a.download = `cena-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      showNotification(`Cena salva (${prettyBytes(blob.size)})!`);
+      updateSceneSizeEstimate();
+    }
+
+    function loadSceneFromFile(event) {
+      if (!isHost) return alert("Apenas o Host pode carregar cenas.");
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || "{}"));
+          hostLoadScenePayload(payload);
+        } catch (e) {
+          alert("JSON inválido.");
+        }
+        event.target.value = "";
+      };
+      reader.readAsText(file);
+    }
+
     // =============== Start ===============
-    // Impede menu de contexto (pra facilitar pan etc.)
     window.addEventListener('contextmenu', (e) => e.preventDefault());
 
     initNetwork();
+    setTimeout(() => { initSceneUIHooks(); }, 0);
   </script>
 </body>
 </html>
