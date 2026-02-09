@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - P2P (Fog + Inspector + Camadas + Biblioteca + Saves)</title>
+  <title>Tabletop Luxury - P2P (Mapa “palpável” + Camadas + Biblioteca de Assets)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -18,7 +18,6 @@
       --glass:rgba(255,255,255,.03);
       --status-online:#4ade80;
       --status-offline:#ef4444;
-      --fog: rgba(0,0,0,0.82);
     }
     body{margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Inter',sans-serif;color:#e0e0e0;}
 
@@ -29,7 +28,7 @@
     #map-container{
       position:absolute;top:0;left:0;
       z-index:5;
-      pointer-events:auto; /* palpável */
+      pointer-events:auto; /* agora é “palpável” */
       transform: translate(0px,0px);
       transform-origin: 0 0;
     }
@@ -53,15 +52,6 @@
       z-index:6;
     }
 
-    /* Fog overlay (apenas player) */
-    #fog-layer{
-      position:absolute;top:0;left:0;
-      width:10000px;height:10000px;
-      pointer-events:none;
-      z-index:95; /* acima do mapa e grid, abaixo de menus fixos */
-      display:none;
-    }
-
     /* TOKENS = camadas >= 1 */
     .token{
       position:absolute;
@@ -70,16 +60,17 @@
       display:flex;align-items:center;justify-content:center;
       background:transparent;
       overflow:visible;
-      transition:filter .2s ease, outline .2s ease, opacity .15s ease;
+      transition:filter .2s ease, outline .2s ease;
     }
     .token.locked{cursor:default!important;pointer-events:none;}
+    .token.locked .token-controls,.token.locked .resize-handle{display:none!important;}
 
     .token-blocker{position:absolute;top:0;left:0;width:100%;height:100%;z-index:50;background:rgba(255,255,255,.001);}
     .token-content-wrapper{width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;pointer-events:none;}
 
-    .token img, .token iframe{
+    .token iframe,.token img{
       width:100%;height:100%;border:none;background:transparent;pointer-events:none;
-      object-fit:contain;
+      object-fit:contain; /* evita “cortar” */
       transition:transform .2s ease-out;
     }
 
@@ -95,6 +86,21 @@
       cursor:nwse-resize;bottom:-8px;right:-8px;
     }
     .token.selected:not(.locked) .resize-handle{display:block;}
+
+    .token-controls{
+      position:absolute;top:-65px;left:50%;transform:translateX(-50%);
+      display:none;background:var(--panel-bg);backdrop-filter:blur(12px);
+      border:1px solid rgba(197,160,89,.4);border-radius:40px;
+      padding:8px 16px;gap:12px;z-index:200;
+      box-shadow:0 4px 20px rgba(0,0,0,.5);
+      white-space:nowrap;
+    }
+    .token.selected:not(.locked) .token-controls{display:flex;align-items:center;}
+    .token-btn{
+      color:#fff;font-size:16px;cursor:pointer;opacity:.85;transition:all .2s;
+      display:flex;align-items:center;gap:5px;
+    }
+    .token-btn:hover{opacity:1;color:var(--gold);transform:scale(1.08);}
 
     .hud-element{transition:opacity .4s ease, transform .4s ease;}
     .hud-hidden .hud-element{opacity:0!important;pointer-events:none!important;transform:translateY(10px);}
@@ -183,7 +189,7 @@
     }
     #role-badge b{color:var(--gold);}
 
-    /* BIBLIOTECA */
+    /* BIBLIOTECA (Assets/Players/Mapas) */
     .library-panel{
       position:fixed;top:170px;right:20px;z-index:1200;width:380px;max-height:560px;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
@@ -191,6 +197,7 @@
       box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden;display:none;
     }
     .library-panel.show{display:block;}
+
     .library-tabs{display:flex;gap:8px;margin-bottom:10px;}
     .library-tab{
       flex:1;padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.25);
@@ -198,14 +205,17 @@
       cursor:pointer;color:#ccc;text-align:center;
     }
     .library-tab.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+
     .library-search{
       width:100%;margin-bottom:10px;padding:8px 10px;border-radius:10px;
       border:1px solid rgba(197,160,89,.2);background:rgba(0,0,0,.35);color:#fff;font-size:12px;outline:none;
     }
+
     .library-grid{
       overflow:auto;max-height:390px;padding-right:6px;
       display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
     }
+
     .asset-card{
       border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);
       border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px;
@@ -222,7 +232,7 @@
     }
     .asset-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
 
-    /* CAMADAS */
+    /* GERENCIADOR DE CAMADAS */
     .layers-panel{
       position:fixed;top:230px;left:50%;transform:translateX(-50%);
       z-index:1200;min-width:360px;max-width:520px;
@@ -240,88 +250,6 @@
       background:rgba(255,255,255,.03);color:#ddd;
     }
     .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-
-    /* INSPECTOR (grande) */
-    .inspector{
-      position:fixed;
-      right:20px;
-      bottom:25px;
-      z-index:1500;
-      width:420px;
-      background:var(--panel-bg);
-      border:1px solid rgba(197,160,89,.22);
-      border-radius:18px;
-      backdrop-filter:blur(12px);
-      box-shadow:0 12px 40px rgba(0,0,0,.55);
-      padding:14px;
-      display:none;
-    }
-    .inspector.show{display:block;}
-    .inspector h4{
-      font-family:'Cinzel',serif;
-      color:var(--gold);
-      font-size:14px;
-      letter-spacing:1px;
-      margin:0 0 10px 0;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .ins-row{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      margin-bottom:10px;
-    }
-    .ins-row label{
-      width:105px;
-      font-size:11px;
-      opacity:.85;
-    }
-    .ins-row input[type="number"], .ins-row select{
-      flex:1;
-      background:rgba(0,0,0,.35);
-      border:1px solid rgba(197,160,89,.18);
-      color:#fff;
-      border-radius:12px;
-      padding:8px 10px;
-      font-size:12px;
-      outline:none;
-    }
-    .ins-row input[type="range"]{
-      flex:1;
-    }
-    .ins-actions{
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:8px;
-      margin-top:10px;
-    }
-    .ins-actions button{
-      padding:10px 10px;
-      border-radius:14px;
-      border:1px solid rgba(197,160,89,.22);
-      background:rgba(255,255,255,.03);
-      color:#ddd;
-      font-size:12px;
-      cursor:pointer;
-    }
-    .ins-actions button:hover{
-      color:var(--gold);
-      border-color:rgba(197,160,89,.55);
-      background:rgba(255,255,255,.05);
-    }
-    .ins-actions button.danger{
-      border-color:rgba(239,68,68,.28);
-      color:#ffb4b4;
-    }
-    .ins-actions button.danger:hover{
-      color:#fff;
-      border-color:rgba(239,68,68,.6);
-      background:rgba(239,68,68,.12);
-    }
-    .muted{opacity:.75;font-size:10px;line-height:1.3;}
   </style>
 </head>
 
@@ -429,87 +357,6 @@
       </div>
     </div>
 
-    <!-- INSPECTOR -->
-    <div class="inspector" id="inspector">
-      <h4>
-        <span>Inspector</span>
-        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="closeInspector()">✕</button>
-      </h4>
-
-      <div class="muted" id="inspector-sub"></div>
-
-      <div class="ins-row">
-        <label>Layer</label>
-        <input type="number" id="ins-layer" min="1" max="50">
-      </div>
-
-      <div class="ins-row">
-        <label>Posição X</label>
-        <input type="number" id="ins-x">
-      </div>
-      <div class="ins-row">
-        <label>Posição Y</label>
-        <input type="number" id="ins-y">
-      </div>
-
-      <div class="ins-row">
-        <label>Largura</label>
-        <input type="number" id="ins-w" min="40" max="2500">
-      </div>
-      <div class="ins-row">
-        <label>Altura</label>
-        <input type="number" id="ins-h" min="40" max="2500">
-      </div>
-
-      <div class="ins-row">
-        <label>Rotação</label>
-        <input type="number" id="ins-rot" min="0" max="359">
-      </div>
-
-      <div class="ins-row">
-        <label>Zoom Interno</label>
-        <input type="range" id="ins-zoom" min="0.2" max="5" step="0.05">
-      </div>
-
-      <div class="ins-row">
-        <label>Fit</label>
-        <select id="ins-fit">
-          <option value="contain">Contain</option>
-          <option value="cover">Cover</option>
-        </select>
-      </div>
-
-      <div style="height:1px;background:rgba(197,160,89,.18);margin:10px 0;"></div>
-
-      <div class="ins-row">
-        <label>Fog: Visão</label>
-        <select id="ins-vision">
-          <option value="off">OFF</option>
-          <option value="on">ON</option>
-        </select>
-      </div>
-
-      <div class="ins-row">
-        <label>Raio Fog</label>
-        <input type="number" id="ins-fog" min="0" max="5000" step="10">
-      </div>
-
-      <div class="muted">
-        Player verá tokens (exceto mapa) apenas dentro do(s) círculo(s) de visão.  
-        Se nenhum token estiver com Visão=ON e Raio>0, o player verá só o mapa.
-      </div>
-
-      <div class="ins-actions">
-        <button onclick="insRotate(-45)">⟲ -45°</button>
-        <button onclick="insFlip()">↔ Flip</button>
-        <button onclick="insRotate(45)">⟳ +45°</button>
-
-        <button onclick="insLock(true)">🔒 Lock</button>
-        <button onclick="insLock(false)">🔓 Unlock</button>
-        <button class="danger" onclick="insDelete()">🗑️ Delete</button>
-      </div>
-    </div>
-
     <div class="sidebar hud-element" id="sidebar">
       <div class="toggle-sidebar-btn" onclick="toggleSidebar()">☰</div>
       <div class="p-6 overflow-y-auto h-full">
@@ -525,7 +372,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Mapa arrastável com inércia. Trave para evitar mover.
+            Agora o mapa é arrastável com “inércia” (palpável). Trave para evitar mover.
           </p>
         </div>
 
@@ -579,17 +426,15 @@
     <div id="canvas-container">
       <div id="map-container" class="map-layer"></div>
       <div id="grid-layer" class="grid-layer"></div>
-      <canvas id="fog-layer"></canvas>
     </div>
   </div>
 
   <script>
     /********************************************************************
-     * ✅ ADIÇÕES NESTA VERSÃO
-     * - FO G por elemento (token): visionEnabled + fogRadius
-     * - Player: tudo fora do fog (exceto mapa) fica invisível
-     * - Inspector grande (removeu token-controls)
-     * - Saves/Cenas incluem fog
+     * ✅ MELHORIAS PEDIDAS
+     * - MAPA palpável: arrasta + inércia (“física”) + sync em rede + salva/recupera posição
+     * - SISTEMA DE CAMADAS: mapa sempre layer 0; tokens têm layer >= 1; visibilidade/lock por layer
+     * - BIBLIOTECA/ASSETS: separa Mapas / Players / Assets (tudo que não é player nem mapa)
      ********************************************************************/
 
     // ===== UTIL =====
@@ -607,8 +452,6 @@
     const viewport = document.getElementById('viewport');
     const mapContainer = document.getElementById('map-container');
     const gridLayer = document.getElementById('grid-layer');
-    const fogCanvas = document.getElementById('fog-layer');
-    const fogCtx = fogCanvas.getContext('2d');
     const sidebar = document.getElementById('sidebar');
     const diceLogEntries = document.getElementById('dice-entries');
 
@@ -635,27 +478,17 @@
     const btnLibrary = document.getElementById('btn-library');
     const btnLayers = document.getElementById('btn-layers');
 
-    // Inspector
-    const inspector = document.getElementById('inspector');
-    const inspectorSub = document.getElementById('inspector-sub');
-    const insLayer = document.getElementById('ins-layer');
-    const insX = document.getElementById('ins-x');
-    const insY = document.getElementById('ins-y');
-    const insW = document.getElementById('ins-w');
-    const insH = document.getElementById('ins-h');
-    const insRot = document.getElementById('ins-rot');
-    const insZoom = document.getElementById('ins-zoom');
-    const insFit = document.getElementById('ins-fit');
-    const insVision = document.getElementById('ins-vision');
-    const insFog = document.getElementById('ins-fog');
-
     // Biblioteca
     const libraryPanel = document.getElementById('library-panel');
     const libraryGrid = document.getElementById('library-grid');
     const librarySearch = document.getElementById('library-search');
     const libraryCount = document.getElementById('library-count');
     let libraryTab = "maps";
-    const library = { maps: [], players: [], assets: [] };
+    const library = {
+      maps: [],
+      players: [],
+      assets: []
+    };
 
     // Camadas
     const layersPanel = document.getElementById('layers-panel');
@@ -690,7 +523,12 @@
     };
 
     // ===== SISTEMA DE CAMADAS =====
-    const layerState = { visible: {}, locked: {} };
+    // layer 0 = mapa. tokens >= 1
+    // visibilidade/lock por layer (host define e sincroniza)
+    const layerState = {
+      visible: {}, // layer -> bool
+      locked: {},  // layer -> bool (impede mover/editar)
+    };
 
     function ensureLayerDefaults(layer){
       if (layer == null) return;
@@ -699,6 +537,8 @@
     }
 
     function computeTokenZIndex(layer){
+      // mapa fica fixo no 5. grid 6.
+      // tokens começam em 100, e cada layer soma 10
       const base = 100;
       const l = Number(layer || 1);
       return base + (l * 10);
@@ -711,8 +551,6 @@
         const vis = !!layerState.visible[layer];
         t.style.display = vis ? "" : "none";
       });
-      // Player também passa por fog
-      if (!isHost) updateFogAndVisibility();
     }
 
     function toggleLayersPanel(){
@@ -726,6 +564,7 @@
 
       const layers = new Set();
       Object.values(state.tokens).forEach(t => layers.add(Number(t.layer || 1)));
+      // sempre listar 1..max
       const maxLayer = layers.size ? Math.max(...Array.from(layers)) : 3;
 
       layersList.innerHTML = "";
@@ -776,8 +615,8 @@
 
     // ===== ESTADO (Host autoritativo) =====
     const state = {
-      map: { src:null, locked:false, x:0, y:0 },
-      tokens: {}
+      map: { src:null, locked:false, x:0, y:0 }, // x/y = offset do mapa dentro do canvas
+      tokens: {} // id -> props
     };
 
     // ===== UI =====
@@ -805,10 +644,6 @@
       scenePanel.style.display = isHost ? "" : "none";
       layersPanel.style.display = isHost ? "" : "none";
       libraryPanel.style.display = isHost ? "" : "none";
-
-      // Fog canvas só pra player
-      fogCanvas.style.display = isHost ? "none" : "block";
-      if (!isHost) updateFogAndVisibility();
     }
 
     // ===== Convite =====
@@ -912,6 +747,7 @@
           mapVel.vx = 0; mapVel.vy = 0;
           stopMapInertia();
 
+          // sync final
           if (isHost){
             const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
             applyAction(action,false);
@@ -929,8 +765,9 @@
     }
 
     function setupMapDrag(){
+      // pega a IMG atual quando existir
       mapContainer.addEventListener('mousedown', (e)=>{
-        if (!isHost) return;
+        if (!isHost) return;            // só host move mapa
         if (state.map.locked) return;
         const img = mapContainer.querySelector('img');
         if (!img) return;
@@ -950,7 +787,7 @@
         const onMove = (me) => {
           if (!mapDragging) return;
 
-          const dx = (me.clientX - mapDragStart.mx) / scale;
+          const dx = (me.clientX - mapDragStart.mx) / scale; // compensar zoom do canvas
           const dy = (me.clientY - mapDragStart.my) / scale;
 
           const nx = mapDragStart.x + dx;
@@ -959,7 +796,7 @@
 
           const now = performance.now();
           const dt = Math.max(1, now - mapLastMove.t);
-          mapVel.vx = (nx - mapLastMove.x) / dt * 16;
+          mapVel.vx = (nx - mapLastMove.x) / dt * 16; // normaliza ~60fps
           mapVel.vy = (ny - mapLastMove.y) / dt * 16;
           mapLastMove = { t: now, x: nx, y: ny };
         };
@@ -970,8 +807,10 @@
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
 
+          // começa inércia
           startMapInertia();
 
+          // sync imediato também (pra sensação de “pegou”)
           const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
           applyAction(action,false);
           broadcastACT(action);
@@ -989,6 +828,7 @@
         mapContainer.innerHTML = "";
         mapContainer.appendChild(img);
 
+        // Ao trocar mapa, centraliza câmera mas mantém offset do mapa em 0,0 (host pode mover depois)
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
         posX = window.innerWidth/2 - (img.width * scale)/2;
         posY = window.innerHeight/2 - (img.height * scale)/2;
@@ -1015,7 +855,7 @@
         id,
         src,
         type,
-        kind: p.kind ?? "asset",
+        kind: p.kind ?? "asset",        // "player" | "asset"
         layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
@@ -1025,11 +865,7 @@
         flipped: p.flipped ?? "false",
         innerZoom: p.innerZoom ?? 1,
         locked: p.locked ?? "false",
-        fitMode: p.fitMode ?? "contain",
-
-        // FOG por token:
-        vision: p.vision ?? "off",     // "on" | "off"
-        fogRadius: Number(p.fogRadius ?? 0)
+        fitMode: p.fitMode ?? "contain"
       };
     }
 
@@ -1037,10 +873,12 @@
       if (!isHost) return;
 
       const id = generateUUID();
+
       const isImg = contentType === "image";
       let width = isImg ? 160 : 400;
       let height = isImg ? 160 : 225;
 
+      // defaults por tipo
       const layerDefault = (kind === "player") ? 3 : 2;
 
       const centerX = (window.innerWidth/2 - posX)/scale;
@@ -1057,10 +895,7 @@
         flipped: "false",
         innerZoom: 1,
         locked: "false",
-        fitMode: "contain",
-
-        vision: "off",
-        fogRadius: 0
+        fitMode: "contain"
       };
 
       const action = { type:"CREATE_TOKEN", id, src, contentType, props };
@@ -1108,10 +943,6 @@
       token.dataset.locked = props?.locked ?? "false";
       token.dataset.fitMode = props?.fitMode ?? "contain";
 
-      // fog props
-      token.dataset.vision = props?.vision ?? "off";
-      token.dataset.fogRadius = String(Number(props?.fogRadius ?? 0));
-
       if (token.dataset.locked === "true"){
         token.classList.add('locked');
         token.style.pointerEvents = "none";
@@ -1137,10 +968,28 @@
       const handle = document.createElement('div');
       handle.className = "resize-handle";
 
+      const controls = document.createElement('div');
+      controls.className = "token-controls";
+      controls.innerHTML = `
+        <span class="token-btn" title="Layer -" onclick="layerToken(event, -1)">🧱➖</span>
+        <span class="token-btn" title="Layer +" onclick="layerToken(event, 1)">🧱➕</span>
+        <span class="token-btn" title="Tamanho -" onclick="scaleToken(event, -40)">📏➖</span>
+        <span class="token-btn" title="Tamanho +" onclick="scaleToken(event, 40)">📏➕</span>
+        <span class="token-btn" title="Zoom Interno -" onclick="zoomInnerToken(event, -0.1)">➖</span>
+        <span class="token-btn" title="Zoom Interno +" onclick="zoomInnerToken(event, 0.1)">➕</span>
+        <span class="token-btn" title="Fit" onclick="fitToken(event)">🧩</span>
+        <span class="token-btn" title="Reset" onclick="resetToken(event)">♻️</span>
+        <span class="token-btn" title="Espelhar (F)" onclick="flipToken(this.closest('.token'))">↔️</span>
+        <span class="token-btn" title="Girar 45°" onclick="rotateToken(event, 45)">🔄</span>
+        <span class="token-btn" title="Trancar" onclick="lockToken(event)">🔒</span>
+        <span class="token-btn text-red-400" title="Eliminar" onclick="deleteToken(event)">🗑️</span>
+      `;
+
       wrapper.appendChild(content);
       token.appendChild(blocker);
       token.appendChild(wrapper);
       token.appendChild(handle);
+      token.appendChild(controls);
       canvas.appendChild(token);
 
       setTimeout(()=>updateImgTransform(token),10);
@@ -1149,9 +998,31 @@
       const vis = !!layerState.visible[layer];
       token.style.display = vis ? "" : "none";
 
-      // resize handle (Host only)
+      // resize via ctrl+wheel
+      token.addEventListener('wheel',(e)=>{
+        if (!e.ctrlKey) return;
+        if (token.dataset.locked === "true") return;
+        // trava por layer?
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+        e.preventDefault(); e.stopPropagation();
+        const delta = e.deltaY>0 ? -20 : 20;
+
+        const startW = parseInt(token.dataset.sizeW);
+        const startH = parseInt(token.dataset.sizeH);
+        const ratio = startH/startW;
+        const newW = Math.max(40, Math.min(startW + delta, 2500));
+        const newH = Math.max(40, Math.min(newW * ratio, 2500));
+
+        const action = { type:"UPDATE_PROP", id: token.dataset.uuid, prop:"size", value:{w:newW,h:newH} };
+        if (isHost){ applyAction(action,false); broadcastACT(action); }
+        else sendREQ(action);
+
+        updateSceneSizeEstimate();
+      },{passive:false});
+
+      // resize handle drag
       handle.addEventListener('mousedown',(e)=>{
-        if (!isHost) return;
         if (token.dataset.locked === "true") return;
         if (layerState.locked[Number(token.dataset.layer||2)]) return;
         if (e.button!==0) return;
@@ -1176,7 +1047,8 @@
           document.removeEventListener('mousemove',onMove);
           document.removeEventListener('mouseup',onUp);
           const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w:pendingW,h:pendingH} };
-          applyAction(action,false); broadcastACT(action);
+          if (isHost){ applyAction(action,false); broadcastACT(action); }
+          else sendREQ(action);
           updateSceneSizeEstimate();
         }
         document.addEventListener('mousemove',onMove);
@@ -1187,7 +1059,7 @@
       token.addEventListener('mousedown',(e)=>{
         if (e.button!==0 || e.altKey) return;
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return; // layer trancada
         e.stopPropagation();
         selectToken(token);
         startDraggingToken(e, token);
@@ -1211,7 +1083,6 @@
       if (selectedToken) selectedToken.classList.remove('selected');
       selectedToken = token;
       selectedToken.classList.add('selected');
-      openInspectorFor(token);
     }
 
     function startDraggingToken(e, token){
@@ -1232,11 +1103,6 @@
         }
         token.style.left=newX+"px";
         token.style.top=newY+"px";
-        // inspector acompanha
-        if (selectedToken && selectedToken.dataset.uuid===token.dataset.uuid) {
-          insX.value = Math.round(newX);
-          insY.value = Math.round(newY);
-        }
       }
 
       function onUp(){
@@ -1298,18 +1164,6 @@
         token.style.zIndex = String(computeTokenZIndex(newLayer));
         const vis = !!layerState.visible[newLayer];
         token.style.display = vis ? "" : "none";
-      } else if (prop==="vision"){
-        token.dataset.vision = String(value);
-      } else if (prop==="fogRadius"){
-        token.dataset.fogRadius = String(Number(value||0));
-      }
-
-      // player aplica fog
-      if (!isHost) updateFogAndVisibility();
-
-      // inspector atualiza se for o selecionado
-      if (selectedToken && selectedToken.dataset.uuid === id){
-        openInspectorFor(selectedToken, true);
       }
 
       updateSceneSizeEstimate();
@@ -1318,234 +1172,157 @@
     function removeTokenLocal(id){
       const t=document.getElementById(`token-${id}`);
       if (t) t.remove();
-      if (selectedToken && selectedToken.dataset.uuid===id){
-        selectedToken=null;
-        closeInspector();
-      }
-      if (!isHost) updateFogAndVisibility();
+      if (selectedToken && selectedToken.dataset.uuid===id) selectedToken=null;
     }
 
-    // ===== INSPECTOR =====
-    function closeInspector(){
-      inspector.classList.remove('show');
-    }
-
-    function openInspectorFor(token, silent=false){
+    // ===== AÇÕES DE TOKEN (UI) =====
+    window.lockToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token');
       if (!token) return;
-      inspector.classList.add('show');
-
-      const id = token.dataset.uuid;
-      const kind = token.dataset.kind || "asset";
-      const layer = Number(token.dataset.layer||2);
-
-      inspectorSub.innerHTML = `
-        <div><b style="color:var(--gold)">ID:</b> ${id}</div>
-        <div><b style="color:var(--gold)">Tipo:</b> ${kind} &nbsp;|&nbsp; <b style="color:var(--gold)">Layer:</b> ${layer}</div>
-        <div class="muted">Host edita tudo. Player só pode mover tokens destravados.</div>
-      `;
-
-      const canEdit = isHost;
-      const canMoveOnly = !isHost;
-
-      // valores
-      insLayer.value = layer;
-      insX.value = Math.round(parseFloat(token.style.left)||0);
-      insY.value = Math.round(parseFloat(token.style.top)||0);
-      insW.value = Math.round(parseFloat(token.style.width)||0);
-      insH.value = Math.round(parseFloat(token.style.height)||0);
-      insRot.value = Number(token.dataset.rotation||0);
-      insZoom.value = Number(token.dataset.innerZoom||1);
-      insFit.value = token.dataset.fitMode || "contain";
-      insVision.value = (token.dataset.vision||"off");
-      insFog.value = Number(token.dataset.fogRadius||0);
-
-      // habilita/desabilita
-      insLayer.disabled = !canEdit;
-      insW.disabled = !canEdit;
-      insH.disabled = !canEdit;
-      insRot.disabled = !canEdit;
-      insZoom.disabled = !canEdit;
-      insFit.disabled = !canEdit;
-      insVision.disabled = !canEdit;
-      insFog.disabled = !canEdit;
-
-      // Player pode mexer X/Y só por “visualização” (drag manda pro host).
-      insX.disabled = true;
-      insY.disabled = true;
-
-      if (!silent) {
-        // nada
-      }
-    }
-
-    function applyInspectorToToken(){
-      if (!selectedToken) return;
       if (!isHost) return;
+      const id=token.dataset.uuid;
+      const action={ type:"UPDATE_PROP", id, prop:"locked", value:"true" };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+    };
 
-      const id = selectedToken.dataset.uuid;
+    window.deleteToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token');
+      if (!token) return;
+      if (!isHost) return;
+      const id=token.dataset.uuid;
+      const action={ type:"REMOVE_TOKEN", id };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+    };
 
-      // layer
-      const layer = Math.max(1, Math.min(50, Number(insLayer.value||2)));
-      const w = Math.max(40, Math.min(2500, Number(insW.value||160)));
-      const h = Math.max(40, Math.min(2500, Number(insH.value||160)));
-      const rot = ((Number(insRot.value||0)%360)+360)%360;
-      const zoom = Math.max(0.2, Math.min(5, Number(insZoom.value||1)));
-      const fit = String(insFit.value||"contain");
-      const vision = String(insVision.value||"off");
-      const fogRadius = Math.max(0, Math.min(5000, Number(insFog.value||0)));
+    window.zoomInnerToken = (e, delta)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
 
-      const actions = [
-        { type:"UPDATE_PROP", id, prop:"layer", value: layer },
-        { type:"UPDATE_PROP", id, prop:"size", value: { w, h } },
-        { type:"UPDATE_PROP", id, prop:"rotation", value: rot },
-        { type:"UPDATE_PROP", id, prop:"innerZoom", value: zoom },
-        { type:"UPDATE_PROP", id, prop:"fitMode", value: fit },
-        { type:"UPDATE_PROP", id, prop:"vision", value: vision },
-        { type:"UPDATE_PROP", id, prop:"fogRadius", value: fogRadius },
+      let z=parseFloat(token.dataset.innerZoom||1);
+      z=Math.max(.2, Math.min(5, z+delta));
+
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"innerZoom", value:z };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.flipToken = (token)=>{
+      if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const newVal = token.dataset.flipped==="false" ? "true" : "false";
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"flipped", value:newVal };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.rotateToken = (e, deg)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const newVal = (parseInt(token.dataset.rotation||0)+deg)%360;
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"rotation", value:newVal };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.fitToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const id=token.dataset.uuid;
+      const a1={ type:"UPDATE_PROP", id, prop:"innerZoom", value:1 };
+      const a2={ type:"UPDATE_PROP", id, prop:"fitMode", value:"contain" };
+      if (isHost){ applyAction(a1,false); broadcastACT(a1); applyAction(a2,false); broadcastACT(a2); }
+      else { sendREQ(a1); sendREQ(a2); }
+    };
+
+    window.resetToken = (e)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
+
+      const id=token.dataset.uuid;
+      const acts=[
+        { type:"UPDATE_PROP", id, prop:"innerZoom", value:1 },
+        { type:"UPDATE_PROP", id, prop:"rotation", value:0 },
+        { type:"UPDATE_PROP", id, prop:"flipped", value:"false" },
+        { type:"UPDATE_PROP", id, prop:"fitMode", value:"contain" }
       ];
+      if (isHost) acts.forEach(a=>{ applyAction(a,false); broadcastACT(a); });
+      else acts.forEach(a=>sendREQ(a));
+    };
 
-      actions.forEach(a=>{ applyAction(a,false); broadcastACT(a); });
+    window.scaleToken = (e, deltaW)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+      if (layerState.locked[Number(token.dataset.layer||2)]) return;
 
-      rebuildLayersPanel();
-      applyLayerVisibilityToDOM();
-      updateFogAndVisibility();
-    }
+      const w0=parseInt(token.dataset.sizeW), h0=parseInt(token.dataset.sizeH);
+      const ratio=h0/w0;
+      let w=Math.max(40, Math.min(2500, w0+deltaW));
+      let h=Math.max(40, Math.min(2500, Math.round(w*ratio)));
 
-    // hooks inspector (host)
-    [insLayer, insW, insH, insRot, insZoom, insFit, insVision, insFog].forEach(el=>{
-      el.addEventListener('change', ()=>applyInspectorToToken());
-      el.addEventListener('input', ()=>{
-        if (el === insZoom) applyInspectorToToken();
-      });
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w,h} };
+      if (isHost){ applyAction(action,false); broadcastACT(action); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    window.layerToken = (e, delta)=>{
+      e.stopPropagation();
+      const token=e.target.closest('.token'); if (!token) return;
+      if (token.dataset.locked==="true") return;
+
+      const cur = Number(token.dataset.layer||2);
+      const next = Math.max(1, cur + delta);
+      ensureLayerDefaults(next);
+
+      const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"layer", value: next };
+      if (isHost){ applyAction(action,false); broadcastACT(action); rebuildLayersPanel(); applyLayerVisibilityToDOM(); }
+      else sendREQ(action);
+      updateSceneSizeEstimate();
+    };
+
+    // ===== Keyboard =====
+    window.addEventListener('keydown',(e)=>{
+      if (!selectedToken) return;
+      if (selectedToken.dataset.locked==="true") return;
+      if (layerState.locked[Number(selectedToken.dataset.layer||2)]) return;
+
+      if (e.key.toLowerCase()==='f') flipToken(selectedToken);
+      if (e.key==='Delete'){
+        if (!isHost) return;
+        const id=selectedToken.dataset.uuid;
+        const action={ type:"REMOVE_TOKEN", id };
+        applyAction(action,false); broadcastACT(action);
+        selectedToken=null;
+        updateSceneSizeEstimate();
+      }
     });
 
-    function insRotate(deg){
-      if (!selectedToken || !isHost) return;
-      const id = selectedToken.dataset.uuid;
-      const newVal = (Number(selectedToken.dataset.rotation||0) + deg + 360) % 360;
-      const a={ type:"UPDATE_PROP", id, prop:"rotation", value:newVal };
-      applyAction(a,false); broadcastACT(a);
-    }
-    function insFlip(){
-      if (!selectedToken || !isHost) return;
-      const id = selectedToken.dataset.uuid;
-      const newVal = (selectedToken.dataset.flipped==="true") ? "false" : "true";
-      const a={ type:"UPDATE_PROP", id, prop:"flipped", value:newVal };
-      applyAction(a,false); broadcastACT(a);
-    }
-    function insLock(v){
-      if (!selectedToken || !isHost) return;
-      const id = selectedToken.dataset.uuid;
-      const a={ type:"UPDATE_PROP", id, prop:"locked", value: String(!!v) };
-      applyAction(a,false); broadcastACT(a);
-    }
-    function insDelete(){
-      if (!selectedToken || !isHost) return;
-      const id = selectedToken.dataset.uuid;
-      const a={ type:"REMOVE_TOKEN", id };
-      applyAction(a,false); broadcastACT(a);
-      closeInspector();
-    }
-
-    // ===== FOG (Player Only) =====
-    function resizeFogCanvas(){
-      fogCanvas.width = 10000;
-      fogCanvas.height = 10000;
-    }
-    resizeFogCanvas();
-
-    function tokenCenterCanvas(t){
-      const x = (parseFloat(t.style.left)||0) + (parseFloat(t.style.width)||0)/2;
-      const y = (parseFloat(t.style.top)||0) + (parseFloat(t.style.height)||0)/2;
-      return {x,y};
-    }
-
-    function getVisionSources(){
-      const sources = [];
-      for (const id of Object.keys(state.tokens)){
-        const tok = state.tokens[id];
-        if (!tok) continue;
-        const vision = String(tok.vision||"off");
-        const r = Number(tok.fogRadius||0);
-        if (vision === "on" && r > 0){
-          sources.push({ id, x: (parseFloat(tok.x)||0) + (Number(tok.w)||0)/2, y: (parseFloat(tok.y)||0) + (Number(tok.h)||0)/2, r });
-        }
+    viewport.addEventListener('mousedown',(e)=>{
+      if (e.target===viewport || e.target===canvas || e.target===gridLayer){
+        if (selectedToken) selectedToken.classList.remove('selected');
+        selectedToken=null;
       }
-      return sources;
-    }
-
-    // desenha overlay e decide visibilidade dos tokens para player
-    function updateFogAndVisibility(){
-      if (isHost) return;
-
-      // aplica layer hidden primeiro
-      document.querySelectorAll('.token').forEach(t=>{
-        const layer = Number(t.dataset.layer||2);
-        ensureLayerDefaults(layer);
-        const vis = !!layerState.visible[layer];
-        t.style.display = vis ? "" : "none";
-      });
-
-      const sources = getVisionSources();
-
-      // Se não tem fonte, player vê apenas mapa (tokens invisíveis)
-      if (!sources.length){
-        document.querySelectorAll('.token').forEach(t=>{
-          t.style.opacity = 0;
-          t.style.pointerEvents = "none";
-        });
-        // fog total
-        fogCtx.clearRect(0,0,fogCanvas.width,fogCanvas.height);
-        fogCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--fog') || 'rgba(0,0,0,0.82)';
-        fogCtx.fillRect(0,0,fogCanvas.width,fogCanvas.height);
-        return;
-      }
-
-      // tokens: visível se dentro de algum círculo
-      document.querySelectorAll('.token').forEach(t=>{
-        const layer = Number(t.dataset.layer||2);
-        ensureLayerDefaults(layer);
-        if (!layerState.visible[layer]){
-          t.style.opacity = 0;
-          t.style.pointerEvents = "none";
-          return;
-        }
-        const {x,y} = tokenCenterCanvas(t);
-        let inside = false;
-        for (const s of sources){
-          const dx = x - s.x;
-          const dy = y - s.y;
-          const d2 = dx*dx + dy*dy;
-          if (d2 <= (s.r*s.r)) { inside = true; break; }
-        }
-        t.style.opacity = inside ? 1 : 0;
-        // player só interage se dentro e destravado (e a lógica req/host valida)
-        t.style.pointerEvents = inside ? "auto" : "none";
-      });
-
-      // desenha fog overlay com buracos
-      fogCtx.clearRect(0,0,fogCanvas.width,fogCanvas.height);
-
-      // base
-      fogCtx.globalCompositeOperation = "source-over";
-      fogCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--fog') || 'rgba(0,0,0,0.82)';
-      fogCtx.fillRect(0,0,fogCanvas.width,fogCanvas.height);
-
-      // recorta círculos
-      fogCtx.globalCompositeOperation = "destination-out";
-
-      for (const s of sources){
-        const grd = fogCtx.createRadialGradient(s.x, s.y, Math.max(0, s.r*0.72), s.x, s.y, s.r);
-        grd.addColorStop(0, "rgba(0,0,0,1)");
-        grd.addColorStop(1, "rgba(0,0,0,0)");
-        fogCtx.fillStyle = grd;
-        fogCtx.beginPath();
-        fogCtx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-        fogCtx.fill();
-      }
-
-      fogCtx.globalCompositeOperation = "source-over";
-    }
+    });
 
     // ===== DADOS / LOG =====
     function rollDice(faces){
@@ -1810,7 +1587,7 @@
     function updateSceneSizeEstimate(){
       if (!isHost) return;
       const payload={
-        version:5,
+        version:4,
         savedAt:new Date().toISOString(),
         map: state.map,
         tokens: state.tokens,
@@ -1893,13 +1670,14 @@
       const quality = parseFloat(document.getElementById('quality')?.value || "0.75");
 
       const payload = {
-        version:5,
+        version:4,
         savedAt:new Date().toISOString(),
         map: JSON.parse(JSON.stringify(state.map)),
         tokens: JSON.parse(JSON.stringify(state.tokens)),
         layerState: JSON.parse(JSON.stringify(layerState))
       };
 
+      // map src
       if (payload.map?.src){
         if (embedRemote && payload.map.src.startsWith("http")){
           const du = await tryFetchAsDataURL(payload.map.src);
@@ -1910,6 +1688,7 @@
         }
       }
 
+      // tokens
       for (const id of Object.keys(payload.tokens)){
         const t = payload.tokens[id];
         if (!t?.src) continue;
@@ -1951,14 +1730,18 @@
       if (!isHost) return;
       if (!payload || typeof payload!=="object") return alert("Cena inválida.");
 
+      // limpar
       const clear = { type:"CLEAR" };
       applyAction(clear,false); broadcastACT(clear);
 
+      // layer state
       if (payload.layerState){
+        // substitui
         layerState.visible = payload.layerState.visible || {};
         layerState.locked = payload.layerState.locked || {};
       }
 
+      // map
       const map = payload.map || {src:null,locked:false,x:0,y:0};
       if (map.src){
         const a = { type:"MAP_UPDATE", src: map.src };
@@ -1970,6 +1753,7 @@
       const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
       applyAction(moveA,false); broadcastACT(moveA);
 
+      // tokens
       const tokens = payload.tokens || {};
       for (const id of Object.keys(tokens)){
         const t = tokens[id];
@@ -1986,11 +1770,7 @@
             x: t.x, y: t.y, w: t.w, h: t.h,
             rotation: t.rotation, flipped: t.flipped,
             innerZoom: t.innerZoom, locked: t.locked,
-            fitMode: t.fitMode || "contain",
-
-            // fog
-            vision: t.vision || "off",
-            fogRadius: Number(t.fogRadius||0)
+            fitMode: t.fitMode || "contain"
           }
         };
         applyAction(create,false); broadcastACT(create);
@@ -2017,6 +1797,20 @@
       r.readAsText(file);
     }
 
+    function initSceneUIHooks(){
+      const q=document.getElementById('quality');
+      const md=document.getElementById('max-dim');
+      const ci=document.getElementById('compress-images');
+      const er=document.getElementById('embed-remote');
+      q?.addEventListener('input', updateQualityLabel);
+      q?.addEventListener('change', updateSceneSizeEstimate);
+      md?.addEventListener('change', updateSceneSizeEstimate);
+      ci?.addEventListener('change', updateSceneSizeEstimate);
+      er?.addEventListener('change', updateSceneSizeEstimate);
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
+
     // ===== CLEAR / UNLOCK =====
     function clearTable(emit=true){
       if (!isHost) return;
@@ -2024,7 +1818,6 @@
       const action={ type:"CLEAR" };
       applyAction(action,false); broadcastACT(action);
       updateSceneSizeEstimate();
-      closeInspector();
     }
 
     function unlockEverything(){
@@ -2079,10 +1872,12 @@
     }
 
     // ===== VALIDAÇÃO (player) =====
-    // Player: SOMENTE MOVE tokens destravados e layer visível/livre
     function validateClientAction(action){
       if (!action?.type) return {ok:false,reason:"Ação inválida"};
-      if (action.type !== "MOVE") return {ok:false,reason:"Player só pode mover"};
+
+      // allow: MOVE, UPDATE_PROP (somente tokens destravados e layer não trancada e visível)
+      const allowed = new Set(["MOVE","UPDATE_PROP"]);
+      if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
 
       const id=action.id;
       if (!id || !state.tokens[id]) return {ok:false,reason:"Token inexistente"};
@@ -2095,6 +1890,30 @@
       if (layerState.locked[layer]) return {ok:false,reason:"Layer trancada"};
       if (String(tok.locked)==="true") return {ok:false,reason:"Token travado"};
 
+      if (action.type==="UPDATE_PROP"){
+        const allowedProps = new Set(["rotation","flipped","innerZoom","size","fitMode","layer"]);
+        if (!allowedProps.has(action.prop)) return {ok:false,reason:"Prop não permitida"};
+
+        if (action.prop==="innerZoom"){
+          const z=Number(action.value);
+          if (!Number.isFinite(z) || z<.2 || z>5) return {ok:false,reason:"Zoom inválido"};
+        }
+        if (action.prop==="size"){
+          const w=Number(action.value?.w), h=Number(action.value?.h);
+          if(!Number.isFinite(w)||!Number.isFinite(h)) return {ok:false,reason:"Size inválido"};
+          if(w<40||w>2500||h<40||h>2500) return {ok:false,reason:"Size fora limite"};
+        }
+        if (action.prop==="fitMode"){
+          const m=String(action.value);
+          if(!["contain","cover"].includes(m)) return {ok:false,reason:"fit inválido"};
+        }
+        if (action.prop==="layer"){
+          const l=Number(action.value);
+          if(!Number.isFinite(l)||l<1||l>50) return {ok:false,reason:"Layer inválida"};
+          // opcional: impedir player de trocar layer (se quiser)
+          // return {ok:false,reason:"Player não muda layer"};
+        }
+      }
       return {ok:true};
     }
 
@@ -2112,6 +1931,7 @@
     function applyAction(action, fromNetwork){
       switch(action.type){
         case "CLEAR":{
+          // limpa DOM
           document.querySelectorAll('.token').forEach(t=>t.remove());
           mapContainer.innerHTML="";
           document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
@@ -2119,20 +1939,23 @@
           stopMapInertia();
           mapDragging=false;
 
+          // limpa estado
           state.map={src:null,locked:false,x:0,y:0};
           state.tokens={};
 
+          // layerState não zera (mantém preferências), mas pode se quiser:
+          // layerState.visible={}, layerState.locked={}
           setMapLockLocal(false,false);
           setMapOffset(0,0);
 
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          if (!isHost) updateFogAndVisibility();
           break;
         }
 
         case "MAP_UPDATE":{
           state.map.src = action.src;
+          // ao atualizar mapa, mantém offsets atuais
           applyMapLocal(action.src,false);
           break;
         }
@@ -2151,10 +1974,10 @@
         case "CREATE_TOKEN":{
           const {id, src, contentType, props} = action;
           addTokenLocal(src, contentType, id, props);
-          state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          if (isHost) state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          else state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2164,7 +1987,6 @@
           delete state.tokens[id];
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2172,7 +1994,6 @@
           const {id,x,y}=action;
           moveTokenDOM(id,x,y);
           if (state.tokens[id]){ state.tokens[id].x=x; state.tokens[id].y=y; }
-          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2190,12 +2011,9 @@
               state.tokens[id].layer=Number(value);
               ensureLayerDefaults(Number(value));
             }
-            if (prop==="vision") state.tokens[id].vision=String(value);
-            if (prop==="fogRadius") state.tokens[id].fogRadius=Number(value||0);
           }
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2211,7 +2029,6 @@
           if (action.prop==="locked") layerState.locked[l]=!!action.value;
           applyLayerVisibilityToDOM();
           rebuildLayersPanel();
-          if (!isHost) updateFogAndVisibility();
           break;
         }
       }
@@ -2219,15 +2036,18 @@
     }
 
     function applyFullSync(s, ls){
+      // limpa DOM
       document.querySelectorAll('.token').forEach(t=>t.remove());
       mapContainer.innerHTML="";
       document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
       selectedToken=null;
       stopMapInertia();
 
+      // aplica layerState
       layerState.visible = ls?.visible || {};
       layerState.locked = ls?.locked || {};
 
+      // aplica estado
       if (s?.map){
         state.map = JSON.parse(JSON.stringify(s.map));
         if (state.map.src) applyMapLocal(state.map.src,false);
@@ -2247,29 +2067,7 @@
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
       updateSceneSizeEstimate();
-      if (!isHost) updateFogAndVisibility();
     }
-
-    // ===== Keyboard =====
-    window.addEventListener('keydown',(e)=>{
-      if (!selectedToken) return;
-      if (!isHost) return; // só host gira/flip/delete pelo teclado
-
-      if (e.key.toLowerCase()==='f'){
-        insFlip();
-      }
-      if (e.key==='Delete'){
-        insDelete();
-      }
-    });
-
-    viewport.addEventListener('mousedown',(e)=>{
-      if (e.target===viewport || e.target===canvas || e.target===gridLayer || e.target===fogCanvas){
-        if (selectedToken) selectedToken.classList.remove('selected');
-        selectedToken=null;
-        closeInspector();
-      }
-    });
 
     // ===== PeerJS setup =====
     function initNetwork(){
@@ -2335,6 +2133,12 @@
     function setupConnection(conn){
       conn.on('data',(data)=>handleNetworkData(data, conn.peer));
     }
+
+    // ===== Players / Assets: constraints =====
+    // (por enquanto o player só move o que está destravado e layer livre/visível; host manda tudo)
+
+    // ===== Map: Host também sync posição quando solta =====
+    // (já fazemos MAP_MOVE ao soltar e no final da inércia)
 
     // ===== Scene UI hooks =====
     function initUI(){
