@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - P2P (Saves + Perfil + Fog por Elemento + Layers)</title>
+  <title>Tabletop Luxury - P2P (Fog + Inspector + Camadas + Biblioteca + Saves)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -14,32 +14,34 @@
     :root{
       --gold:#c5a059;
       --dark-bg:#0f0f0f;
-      --panel-bg:rgba(20,20,20,.92);
-      --glass:rgba(255,255,255,.04);
+      --panel-bg:rgba(20,20,20,.9);
+      --glass:rgba(255,255,255,.03);
       --status-online:#4ade80;
       --status-offline:#ef4444;
+      --fog: rgba(0,0,0,0.82);
     }
     body{margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Inter',sans-serif;color:#e0e0e0;}
 
     #viewport{width:100vw;height:100vh;overflow:hidden;position:relative;background:radial-gradient(circle,#1a1a1a 0%,#0a0a0a 100%);z-index:1;}
     #canvas-container{width:10000px;height:10000px;position:absolute;top:0;left:0;transform-origin:0 0;cursor:grab;z-index:2;}
 
-    /* MAPA = layer 0 */
+    /* MAPA = camada 0 */
     #map-container{
       position:absolute;top:0;left:0;
       z-index:5;
-      pointer-events:auto;
+      pointer-events:auto; /* palpável */
       transform: translate(0px,0px);
       transform-origin: 0 0;
     }
     #map-container.locked{pointer-events:none;}
     #map-container img{
       display:block;max-width:none;
-      user-select:none;-webkit-user-drag:none;
-      cursor:grab;
+      user-select:none;
+      -webkit-user-drag:none;
+      cursor: grab;
       filter: drop-shadow(0 0 25px rgba(0,0,0,.45));
     }
-    #map-container.dragging img{cursor:grabbing;}
+    #map-container.dragging img{cursor: grabbing;}
 
     .grid-layer{
       position:absolute;top:0;left:0;width:100%;height:100%;
@@ -51,7 +53,16 @@
       z-index:6;
     }
 
-    /* TOKENS */
+    /* Fog overlay (apenas player) */
+    #fog-layer{
+      position:absolute;top:0;left:0;
+      width:10000px;height:10000px;
+      pointer-events:none;
+      z-index:95; /* acima do mapa e grid, abaixo de menus fixos */
+      display:none;
+    }
+
+    /* TOKENS = camadas >= 1 */
     .token{
       position:absolute;
       cursor:move;
@@ -59,213 +70,264 @@
       display:flex;align-items:center;justify-content:center;
       background:transparent;
       overflow:visible;
-      transition:filter .15s ease, outline .15s ease, opacity .15s ease;
+      transition:filter .2s ease, outline .2s ease, opacity .15s ease;
     }
     .token.locked{cursor:default!important;pointer-events:none;}
-    .token.hidden-by-fog{visibility:hidden !important; pointer-events:none !important;}
-    .token.selected:not(.locked){
-      filter:drop-shadow(0 0 15px var(--gold));
-      outline:2px dashed rgba(197,160,89,.6);
-      outline-offset:6px;
-    }
 
     .token-blocker{position:absolute;top:0;left:0;width:100%;height:100%;z-index:50;background:rgba(255,255,255,.001);}
     .token-content-wrapper{width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;pointer-events:none;}
 
-    .token iframe,.token img{
+    .token img, .token iframe{
       width:100%;height:100%;border:none;background:transparent;pointer-events:none;
       object-fit:contain;
-      transition:transform .15s ease-out;
-      image-rendering:auto;
+      transition:transform .2s ease-out;
+    }
+
+    .token.selected:not(.locked){
+      filter:drop-shadow(0 0 15px var(--gold));
+      outline:2px dashed rgba(197,160,89,.6);
+      outline-offset:4px;
     }
 
     .resize-handle{
-      position:absolute;width:18px;height:18px;background:var(--gold);
-      border:2px solid #fff;border-radius:5px;display:none;z-index:110;
-      cursor:nwse-resize;bottom:-9px;right:-9px;
+      position:absolute;width:16px;height:16px;background:var(--gold);
+      border:2px solid #fff;border-radius:4px;display:none;z-index:110;
+      cursor:nwse-resize;bottom:-8px;right:-8px;
     }
     .token.selected:not(.locked) .resize-handle{display:block;}
 
-    /* HUD */
-    .hud-element{transition:opacity .35s ease, transform .35s ease;}
+    .hud-element{transition:opacity .4s ease, transform .4s ease;}
     .hud-hidden .hud-element{opacity:0!important;pointer-events:none!important;transform:translateY(10px);}
 
     .sidebar{
-      width:360px;background:var(--panel-bg);backdrop-filter:blur(15px);
+      width:300px;background:var(--panel-bg);backdrop-filter:blur(15px);
       height:100vh;position:fixed;left:0;top:0;z-index:1000;
       border-right:1px solid rgba(197,160,89,.2);
       transform:translateX(-100%);
-      transition:transform .35s cubic-bezier(.16,1,.3,1);
+      transition:transform .4s cubic-bezier(.16,1,.3,1);
     }
     .sidebar.open{transform:translateX(0);}
     .toggle-sidebar-btn{
-      position:absolute;right:-38px;top:20px;background:var(--panel-bg);
+      position:absolute;right:-35px;top:20px;background:var(--panel-bg);
       border:1px solid rgba(197,160,89,.2);border-left:none;
-      padding:12px 10px;border-radius:0 10px 10px 0;cursor:pointer;color:var(--gold);
-      font-size:16px;
+      padding:10px 8px;border-radius:0 8px 8px 0;cursor:pointer;color:var(--gold);
     }
 
     .controls-top{
-      position:fixed;top:18px;left:50%;transform:translateX(-50%);
+      position:fixed;top:20px;left:50%;transform:translateX(-50%);
       display:flex;gap:10px;z-index:1000;background:var(--panel-bg);
-      padding:10px;border-radius:999px;border:1px solid rgba(197,160,89,.2);
-      backdrop-filter:blur(10px);box-shadow:0 6px 26px rgba(0,0,0,.45);
+      padding:8px;border-radius:40px;border:1px solid rgba(197,160,89,.2);
+      backdrop-filter:blur(10px);box-shadow:0 5px 25px rgba(0,0,0,.4);
     }
 
     .btn-luxury{
-      padding:10px 16px;border-radius:999px;font-size:12px;font-weight:700;
-      text-transform:uppercase;letter-spacing:1px;transition:all .2s;
+      padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;
+      text-transform:uppercase;letter-spacing:1px;transition:all .3s;
       border:1px solid transparent;color:#ccc;background:transparent;
     }
     .btn-luxury:hover,.btn-luxury.active{
-      color:var(--gold);background:var(--glass);border-color:rgba(197,160,89,.45);
+      color:var(--gold);background:var(--glass);border-color:rgba(197,160,89,.4);
     }
 
     .dice-log{
-      position:fixed;bottom:22px;right:22px;width:260px;max-height:220px;
-      background:var(--panel-bg);border-radius:14px;border:1px solid rgba(197,160,89,.15);
-      padding:16px;overflow-y:auto;font-size:13px;z-index:1000;
-      box-shadow:0 6px 18px rgba(0,0,0,.35);
+      position:fixed;bottom:25px;right:25px;width:240px;max-height:200px;
+      background:var(--panel-bg);border-radius:12px;border:1px solid rgba(197,160,89,.15);
+      padding:15px;overflow-y:auto;font-size:13px;z-index:1000;
+      box-shadow:0 4px 15px rgba(0,0,0,.3);
     }
 
     .btn-toggle-hud{
-      position:fixed;bottom:22px;left:22px;z-index:2000;background:var(--panel-bg);
-      width:48px;height:48px;border-radius:50%;
+      position:fixed;bottom:25px;left:25px;z-index:2000;background:var(--panel-bg);
+      width:45px;height:45px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
       border:1px solid rgba(197,160,89,.3);cursor:pointer;color:var(--gold);
-      box-shadow:0 5px 12px rgba(0,0,0,.45);
-      font-size:18px;
+      box-shadow:0 4px 10px rgba(0,0,0,.4);
     }
 
     .url-field{
       background:rgba(0,0,0,.3);border:1px solid rgba(197,160,89,.2);color:#fff;
-      width:100%;font-size:12px;padding:10px;margin-bottom:10px;outline:none;border-radius:12px;
+      width:100%;font-size:12px;padding:8px;margin-bottom:10px;outline:none;border-radius:6px;
     }
     .url-field:focus{border-color:var(--gold);background:rgba(0,0,0,.5);}
 
     h2,h3{font-family:'Cinzel',serif;letter-spacing:1px;color:var(--gold);}
 
     .network-status{
-      position:fixed;top:78px;right:20px;display:flex;align-items:center;gap:10px;
-      background:var(--panel-bg);padding:10px 16px;border-radius:999px;
+      position:fixed;top:80px;right:20px;display:flex;align-items:center;gap:10px;
+      background:var(--panel-bg);padding:8px 16px;border-radius:20px;
       border:1px solid rgba(197,160,89,.2);font-size:11px;z-index:1000;
       backdrop-filter:blur(10px);
-      opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .25s;
+      opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .3s;
     }
     .network-status.show{opacity:1;pointer-events:auto;transform:translateY(0);}
 
-    .status-dot{width:9px;height:9px;border-radius:50%;background:var(--status-offline);box-shadow:0 0 6px currentColor;}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--status-offline);box-shadow:0 0 5px currentColor;}
     .status-dot.online{background:var(--status-online);}
 
     .lock-manager{
-      position:fixed;top:18px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:10px;
+      position:fixed;top:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:10px;
     }
 
     #notification{
-      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);
-      background:rgba(0,0,0,.92);border:1px solid var(--gold);
-      padding:20px 40px;border-radius:12px;z-index:9999;color:var(--gold);
-      font-family:'Cinzel',serif;opacity:0;pointer-events:none;transition:all .22s;
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);
+      background:rgba(0,0,0,.9);border:1px solid var(--gold);
+      padding:20px 40px;border-radius:10px;z-index:9999;color:var(--gold);
+      font-family:'Cinzel',serif;opacity:0;pointer-events:none;transition:all .3s;
     }
     #notification.active{opacity:1;transform:translate(-50%,-50%) scale(1);}
 
     #role-badge{
-      position:fixed;top:138px;right:20px;z-index:1100;background:var(--panel-bg);
-      border:1px solid rgba(197,160,89,.2);border-radius:999px;padding:8px 12px;
+      position:fixed;top:140px;right:20px;z-index:1100;background:var(--panel-bg);
+      border:1px solid rgba(197,160,89,.2);border-radius:999px;padding:6px 12px;
       font-size:11px;backdrop-filter:blur(10px);opacity:.95;
     }
     #role-badge b{color:var(--gold);}
 
-    /* Inspector grande (única UI de edição) */
-    .inspector{
-      position:fixed;top:178px;right:20px;z-index:1200;width:420px;max-height:72vh;
+    /* BIBLIOTECA */
+    .library-panel{
+      position:fixed;top:170px;right:20px;z-index:1200;width:380px;max-height:560px;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
-      border-radius:18px;padding:14px;backdrop-filter:blur(10px);
-      box-shadow:0 12px 34px rgba(0,0,0,.5);
-      display:none;overflow:auto;
+      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden;display:none;
     }
-    .inspector.show{display:block;}
-    .inspector h4{font-family:'Cinzel',serif;color:var(--gold);margin:0 0 10px 0;font-size:16px;}
-    .inspector .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
-    .inspector .block{background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.18);border-radius:14px;padding:10px;}
-    .inspector label{font-size:11px;opacity:.85;display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;}
-    .inspector input[type="range"]{width:100%;}
-    .inspector input[type="number"], .inspector select, .inspector input[type="text"]{
-      width:100%;padding:10px;border-radius:12px;border:1px solid rgba(197,160,89,.22);
-      background:rgba(0,0,0,.35);color:#fff;outline:none;
+    .library-panel.show{display:block;}
+    .library-tabs{display:flex;gap:8px;margin-bottom:10px;}
+    .library-tab{
+      flex:1;padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.25);
+      background:rgba(255,255,255,.03);font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+      cursor:pointer;color:#ccc;text-align:center;
     }
-    .inspector .actions{display:flex;gap:10px;margin-top:8px;}
-    .inspector .actions button{
-      flex:1;padding:10px 12px;border-radius:14px;border:1px solid rgba(197,160,89,.25);
-      background:rgba(255,255,255,.03);color:#ddd;font-weight:700;font-size:12px;cursor:pointer;
+    .library-tab.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+    .library-search{
+      width:100%;margin-bottom:10px;padding:8px 10px;border-radius:10px;
+      border:1px solid rgba(197,160,89,.2);background:rgba(0,0,0,.35);color:#fff;font-size:12px;outline:none;
     }
-    .inspector .actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-    .pill{
-      font-size:11px;padding:8px 12px;border-radius:999px;border:1px solid rgba(197,160,89,.25);
-      cursor:pointer;background:rgba(255,255,255,.03);color:#ddd;font-weight:700;
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      user-select:none;
+    .library-grid{
+      overflow:auto;max-height:390px;padding-right:6px;
+      display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
     }
-    .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.06);}
+    .asset-card{
+      border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);
+      border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px;
+    }
+    .asset-thumb{
+      width:100%;aspect-ratio:1/1;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.06);
+      background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    }
+    .asset-thumb img{width:100%;height:100%;object-fit:cover;}
+    .asset-actions{display:flex;gap:6px;}
+    .asset-actions button{
+      flex:1;padding:6px 8px;border-radius:10px;border:1px solid rgba(197,160,89,.25);
+      background:rgba(255,255,255,.03);color:#ddd;font-size:10px;cursor:pointer;
+    }
+    .asset-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
 
-    /* Layers panel */
+    /* CAMADAS */
     .layers-panel{
-      position:fixed;top:86px;left:50%;transform:translateX(-50%);
-      z-index:1200;min-width:420px;max-width:620px;
+      position:fixed;top:230px;left:50%;transform:translateX(-50%);
+      z-index:1200;min-width:360px;max-width:520px;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
-      border-radius:18px;padding:12px;backdrop-filter:blur(10px);
-      box-shadow:0 12px 34px rgba(0,0,0,.5);
+      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);
       display:none;
     }
     .layers-panel.show{display:block;}
-    .layer-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.12);margin-bottom:8px;}
+    .layer-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.12);margin-bottom:8px;}
     .layer-row b{color:var(--gold);}
-
-    .mini{font-size:10px;opacity:.85;line-height:1.35;}
-
-    /* Fog overlay: canvas full screen (não escala com o board) */
-    #fog-overlay{
-      position:fixed; inset:0;
-      z-index:900; /* acima do board, abaixo do HUD/Sidebar/Inspector */
-      pointer-events:none;
-      opacity:0;
-      transition:opacity .18s ease;
+    .layer-actions{display:flex;gap:8px;align-items:center;}
+    .pill{
+      font-size:10px;padding:5px 10px;border-radius:999px;border:1px solid rgba(197,160,89,.25);cursor:pointer;
+      background:rgba(255,255,255,.03);color:#ddd;
     }
-    #fog-overlay.on{opacity:1;}
-    #fog-canvas{width:100%;height:100%;display:block;}
+    .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
 
-    /* Biblioteca UI */
-    .tabbar{display:flex;gap:8px;margin-bottom:10px;}
-    .tab{flex:1;text-align:center;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.2);background:rgba(255,255,255,.03);cursor:pointer;font-weight:800;font-size:11px;letter-spacing:.5px;}
-    .tab.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-    .library-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-    .lib-card{border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.02);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .12s ease, border-color .12s ease;}
-    .lib-card:hover{transform:scale(1.02);border-color:rgba(197,160,89,.5);}
-    .lib-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#0b0b0b;}
-    .lib-meta{padding:8px;}
-    .lib-meta b{display:block;font-size:11px;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .lib-meta span{display:block;font-size:10px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .lib-actions{display:flex;gap:8px;margin-top:8px;}
-    .lib-actions button{flex:1;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);cursor:pointer;font-weight:800;font-size:11px;}
-    .lib-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-
-    /* Scene list */
-    .scene-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px;border-radius:14px;border:1px solid rgba(197,160,89,.15);background:rgba(255,255,255,.02);margin-bottom:8px;}
-    .scene-row b{color:var(--gold);font-size:11px;}
-    .scene-row span{font-size:10px;opacity:.75;}
-    .scene-row .btn{padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.18);background:rgba(255,255,255,.03);cursor:pointer;font-weight:900;font-size:10px;}
-    .scene-row .btn:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+    /* INSPECTOR (grande) */
+    .inspector{
+      position:fixed;
+      right:20px;
+      bottom:25px;
+      z-index:1500;
+      width:420px;
+      background:var(--panel-bg);
+      border:1px solid rgba(197,160,89,.22);
+      border-radius:18px;
+      backdrop-filter:blur(12px);
+      box-shadow:0 12px 40px rgba(0,0,0,.55);
+      padding:14px;
+      display:none;
+    }
+    .inspector.show{display:block;}
+    .inspector h4{
+      font-family:'Cinzel',serif;
+      color:var(--gold);
+      font-size:14px;
+      letter-spacing:1px;
+      margin:0 0 10px 0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .ins-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    .ins-row label{
+      width:105px;
+      font-size:11px;
+      opacity:.85;
+    }
+    .ins-row input[type="number"], .ins-row select{
+      flex:1;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(197,160,89,.18);
+      color:#fff;
+      border-radius:12px;
+      padding:8px 10px;
+      font-size:12px;
+      outline:none;
+    }
+    .ins-row input[type="range"]{
+      flex:1;
+    }
+    .ins-actions{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:8px;
+      margin-top:10px;
+    }
+    .ins-actions button{
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid rgba(197,160,89,.22);
+      background:rgba(255,255,255,.03);
+      color:#ddd;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .ins-actions button:hover{
+      color:var(--gold);
+      border-color:rgba(197,160,89,.55);
+      background:rgba(255,255,255,.05);
+    }
+    .ins-actions button.danger{
+      border-color:rgba(239,68,68,.28);
+      color:#ffb4b4;
+    }
+    .ins-actions button.danger:hover{
+      color:#fff;
+      border-color:rgba(239,68,68,.6);
+      background:rgba(239,68,68,.12);
+    }
+    .muted{opacity:.75;font-size:10px;line-height:1.3;}
   </style>
 </head>
 
 <body>
   <div id="notification">OK</div>
   <div id="role-badge">Modo: <b id="role-text">...</b></div>
-
-  <!-- Fog overlay -->
-  <div id="fog-overlay">
-    <canvas id="fog-canvas"></canvas>
-  </div>
 
   <div class="btn-toggle-hud" onclick="toggleHUD()" title="Esconder/Mostrar Interface">👁️</div>
 
@@ -275,9 +337,9 @@
       <button class="btn-luxury" id="btn-d6" onclick="rollDice(6)">D6</button>
       <button class="btn-luxury" onclick="toggleGrid()">Grelha</button>
       <button class="btn-luxury" id="btn-lock-all" onclick="unlockEverything()">🔓 Destrancar</button>
-      <button class="btn-luxury" id="btn-fog" onclick="toggleFog()">🌫️ Fog</button>
+      <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
+      <button class="btn-luxury" id="btn-library" onclick="toggleLibrary()">📦 Biblioteca</button>
       <button class="btn-luxury" id="btn-layers" onclick="toggleLayersPanel()">🧱 Camadas</button>
-      <button class="btn-luxury" id="btn-inspector" onclick="toggleInspector()">🛠️ Inspector</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -292,192 +354,207 @@
       <button class="btn-luxury py-0 px-2 text-[10px]" onclick="copyInviteLink()" id="btn-invite">🔗 Copiar Convite</button>
     </div>
 
-    <!-- Inspector (único controle de token) -->
-    <div class="inspector" id="inspector">
-      <h4>Inspector</h4>
-      <div class="mini" id="inspector-sub">Selecione um token.</div>
+    <!-- Painel de Cenas -->
+    <div class="network-status" id="scene-panel" style="top: 120px;">
+      <span style="color: var(--gold); font-weight:700;">Cenas</span>
+      <div class="h-4 w-px bg-white/20 mx-2"></div>
 
-      <div class="block" style="margin:10px 0;">
-        <label>Nome <span id="v-name">-</span></label>
-        <input type="text" id="i-name" placeholder="Ex: Goblin, NPC 1..." />
-        <div class="mini" style="margin-top:6px;">Só pra organização (salvo em cenas e perfil).</div>
-      </div>
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="embed-remote" checked> Embutir URLs
+      </label>
 
-      <div class="row">
-        <div class="block">
-          <label>Layer <span id="v-layer">-</span></label>
-          <input type="number" id="i-layer" min="1" max="50" value="1" />
-        </div>
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="compress-images" checked> Comprimir
+      </label>
 
-        <div class="block">
-          <label>Lock <span id="v-locked">-</span></label>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <div class="pill" id="i-lock" onclick="inspectorToggleLock()">🔒 Trancar</div>
-            <div class="pill" id="i-unlock" onclick="inspectorUnlock()">🔓 Destrancar</div>
-          </div>
-        </div>
-      </div>
+      <select id="max-dim" class="url-field" style="margin:0; padding:6px; width:95px;">
+        <option value="1024">1024px</option>
+        <option value="1536">1536px</option>
+        <option value="2048" selected>2048px</option>
+        <option value="3072">3072px</option>
+        <option value="4096">4096px</option>
+      </select>
 
-      <div class="row">
-        <div class="block">
-          <label>Tamanho <span id="v-size">-</span></label>
-          <input type="range" id="i-size" min="40" max="2500" value="180" />
-        </div>
-        <div class="block">
-          <label>Rotação <span id="v-rot">-</span></label>
-          <input type="range" id="i-rot" min="0" max="359" value="0" />
-        </div>
-      </div>
+      <input id="quality" type="range" min="0.4" max="0.95" step="0.05" value="0.75" style="width:90px;">
+      <span id="quality-label" style="font-size:10px;opacity:.8;">Q 0.75</span>
 
-      <div class="row">
-        <div class="block">
-          <label>Zoom interno <span id="v-zoom">-</span></label>
-          <input type="range" id="i-zoom" min="0.2" max="5" step="0.05" value="1" />
-        </div>
-        <div class="block">
-          <label>Fit <span id="v-fit">-</span></label>
-          <select id="i-fit">
-            <option value="contain">Contain</option>
-            <option value="cover">Cover (preenche)</option>
-          </select>
-          <div class="mini" style="margin-top:6px;">Melhora “portrait” com cover, sem cortar estranho.</div>
+      <span id="scene-size" style="font-size:10px;opacity:.8; margin-left:6px;">~ -</span>
+
+      <div class="h-4 w-px bg-white/20 mx-2"></div>
+
+      <button class="btn-luxury py-0 px-2 text-[10px]" onclick="saveSceneToFile()">Salvar .JSON</button>
+      <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer">
+        Carregar .JSON
+        <input type="file" id="scene-file" accept="application/json" style="display:none" onchange="loadSceneFromFile(event)">
+      </label>
+    </div>
+
+    <!-- Biblioteca / Perfil -->
+    <div class="library-panel" id="library-panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Biblioteca</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-luxury py-0 px-2 text-[10px]" onclick="saveProfileToFile()">Salvar Perfil</button>
+          <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer">
+            Carregar Perfil
+            <input type="file" id="profile-file" accept="application/json" style="display:none" onchange="loadProfileFromFile(event)">
+          </label>
         </div>
       </div>
 
-      <div class="block" style="margin-bottom:10px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <div>
-            <div style="font-family:'Cinzel',serif;color:var(--gold);font-weight:700;">Fog do Elemento</div>
-            <div class="mini">Se ativar “Emite visão”, esse token abre o fog no raio definido.</div>
-          </div>
-          <div class="pill" id="i-fog-emitter" onclick="inspectorToggleFogEmitter()">👁️ Emite visão</div>
-        </div>
-        <div style="margin-top:10px;">
-          <label>Raio de visão <span id="v-fog">-</span></label>
-          <input type="range" id="i-fog" min="50" max="2500" step="10" value="600" />
-        </div>
-        <div class="mini" style="margin-top:8px;">
-          Regras: Players só enxergam tokens dentro de pelo menos 1 área de visão ativa (exceto o mapa).
-        </div>
+      <div class="library-tabs">
+        <div class="library-tab active" id="tab-maps" onclick="setLibraryTab('maps')">Mapas</div>
+        <div class="library-tab" id="tab-players" onclick="setLibraryTab('players')">Players</div>
+        <div class="library-tab" id="tab-assets" onclick="setLibraryTab('assets')">Assets</div>
       </div>
 
-      <div class="actions">
-        <button onclick="inspectorBringFront()">⬆️ Subir layer</button>
-        <button onclick="inspectorSendBack()">⬇️ Descer layer</button>
-      </div>
+      <input class="library-search" id="library-search" placeholder="Buscar..." oninput="renderLibrary()">
+      <div class="library-grid" id="library-grid"></div>
 
-      <div class="actions">
-        <button onclick="inspectorReset()">♻️ Reset</button>
-        <button style="color:#ff6b6b;border-color:rgba(255,107,107,.35);" onclick="inspectorDelete()">🗑️ Deletar</button>
-      </div>
-
-      <div class="block" style="margin-top:10px;">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-family:'Cinzel',serif;color:var(--gold);font-weight:700;">Adicionar ao Perfil</div>
-            <div class="mini">Guarda este item no perfil/biblioteca.</div>
-          </div>
-          <div class="pill" onclick="inspectorAddToProfile()">➕ Salvar no Perfil</div>
-        </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; opacity:.8;">
+        <span id="library-count">0 itens</span>
+        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="clearLibrary()">Limpar Biblioteca</button>
       </div>
     </div>
 
     <!-- Camadas -->
     <div class="layers-panel" id="layers-panel">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
-        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Camadas</div>
+        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Camadas (Layer 0 = Mapa)</div>
         <button class="btn-luxury py-0 px-2 text-[10px]" onclick="rebuildLayersPanel()">Atualizar</button>
       </div>
-      <div class="mini" style="margin-bottom:10px;">Layer 0 é o mapa. Layers aparecem automaticamente conforme você adiciona elementos.</div>
       <div id="layers-list"></div>
+      <div style="font-size:10px;opacity:.75; margin-top:10px;">
+        Dica: tokens têm “layer” e “kind” (player/asset). Player só move o que está destravado e em camada visível.
+      </div>
     </div>
 
-    <!-- Sidebar -->
+    <!-- INSPECTOR -->
+    <div class="inspector" id="inspector">
+      <h4>
+        <span>Inspector</span>
+        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="closeInspector()">✕</button>
+      </h4>
+
+      <div class="muted" id="inspector-sub"></div>
+
+      <div class="ins-row">
+        <label>Layer</label>
+        <input type="number" id="ins-layer" min="1" max="50">
+      </div>
+
+      <div class="ins-row">
+        <label>Posição X</label>
+        <input type="number" id="ins-x">
+      </div>
+      <div class="ins-row">
+        <label>Posição Y</label>
+        <input type="number" id="ins-y">
+      </div>
+
+      <div class="ins-row">
+        <label>Largura</label>
+        <input type="number" id="ins-w" min="40" max="2500">
+      </div>
+      <div class="ins-row">
+        <label>Altura</label>
+        <input type="number" id="ins-h" min="40" max="2500">
+      </div>
+
+      <div class="ins-row">
+        <label>Rotação</label>
+        <input type="number" id="ins-rot" min="0" max="359">
+      </div>
+
+      <div class="ins-row">
+        <label>Zoom Interno</label>
+        <input type="range" id="ins-zoom" min="0.2" max="5" step="0.05">
+      </div>
+
+      <div class="ins-row">
+        <label>Fit</label>
+        <select id="ins-fit">
+          <option value="contain">Contain</option>
+          <option value="cover">Cover</option>
+        </select>
+      </div>
+
+      <div style="height:1px;background:rgba(197,160,89,.18);margin:10px 0;"></div>
+
+      <div class="ins-row">
+        <label>Fog: Visão</label>
+        <select id="ins-vision">
+          <option value="off">OFF</option>
+          <option value="on">ON</option>
+        </select>
+      </div>
+
+      <div class="ins-row">
+        <label>Raio Fog</label>
+        <input type="number" id="ins-fog" min="0" max="5000" step="10">
+      </div>
+
+      <div class="muted">
+        Player verá tokens (exceto mapa) apenas dentro do(s) círculo(s) de visão.  
+        Se nenhum token estiver com Visão=ON e Raio>0, o player verá só o mapa.
+      </div>
+
+      <div class="ins-actions">
+        <button onclick="insRotate(-45)">⟲ -45°</button>
+        <button onclick="insFlip()">↔ Flip</button>
+        <button onclick="insRotate(45)">⟳ +45°</button>
+
+        <button onclick="insLock(true)">🔒 Lock</button>
+        <button onclick="insLock(false)">🔓 Unlock</button>
+        <button class="danger" onclick="insDelete()">🗑️ Delete</button>
+      </div>
+    </div>
+
     <div class="sidebar hud-element" id="sidebar">
       <div class="toggle-sidebar-btn" onclick="toggleSidebar()">☰</div>
       <div class="p-6 overflow-y-auto h-full">
-        <h2 class="text-xl font-bold mb-4 border-b border-gold/30 pb-3">Atelier P2P</h2>
+        <h2 class="text-xl font-bold mb-6 border-b border-gold/30 pb-3">Atelier P2P</h2>
 
-        <!-- CENAS -->
-        <div class="mb-8" id="host-only-scenes">
-          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Cenas (Save/Load)</h3>
-          <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
-            <input type="text" id="scene-name" class="url-field" placeholder="Nome da cena (ex: Dungeon 01)">
-            <div style="display:flex;gap:10px;">
-              <button class="btn-luxury w-full border border-gold/30" onclick="saveScene()">Salvar</button>
-              <button class="btn-luxury w-full border border-gold/30" onclick="saveSceneAsNew()">Salvar como nova</button>
-            </div>
-
-            <div class="mini" style="margin-top:10px;">Export/Import JSON</div>
-            <div style="display:flex;gap:10px;margin-top:8px;">
-              <button class="btn-luxury w-full border border-gold/30" onclick="exportAll()">Exportar Tudo</button>
-              <label class="btn-luxury w-full border border-gold/30 text-center cursor-pointer">
-                Importar Tudo
-                <input type="file" id="import-all-file" accept="application/json" class="hidden" onchange="importAllFile(event)">
-              </label>
-            </div>
-          </div>
-
-          <div class="mini" style="margin:10px 0 6px 2px;">Lista de cenas</div>
-          <div id="scene-list"></div>
-        </div>
-
-        <!-- PERFIL / BIBLIOTECA -->
-        <div class="mb-8" id="host-only-profile">
-          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Perfil / Biblioteca (perfil.json)</h3>
-          <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
-            <div class="tabbar">
-              <div class="tab active" id="tab-maps" onclick="setProfileTab('maps')">MAPAS</div>
-              <div class="tab" id="tab-players" onclick="setProfileTab('players')">PLAYERS</div>
-              <div class="tab" id="tab-assets" onclick="setProfileTab('assets')">ASSETS</div>
-            </div>
-
-            <div class="mini" style="margin-bottom:10px;">
-              Clique em um item para colocar na mesa. (Mapa aplica como Layer 0)
-            </div>
-
-            <div id="profile-grid" class="library-grid"></div>
-
-            <div class="lib-actions">
-              <button onclick="exportProfile()">Exportar Perfil</button>
-              <label style="flex:1;">
-                <button style="width:100%;" onclick="document.getElementById('import-profile-file').click()">Importar Perfil</button>
-                <input type="file" id="import-profile-file" accept="application/json" class="hidden" onchange="importProfileFile(event)">
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- IMPORT HOST -->
+        <!-- MAPA (Host) -->
         <div class="mb-8" id="host-only-map">
-          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Mapa (Layer 0)</h3>
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Mapa (Layer 0)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="map-file" accept="image/*" class="hidden" onchange="importAsset(event, 'map')">
             <label for="map-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
             <input type="text" id="map-url" class="url-field" placeholder="https://link-do-mapa.jpg">
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
+          <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
+            Mapa arrastável com inércia. Trave para evitar mover.
+          </p>
         </div>
 
+        <!-- PLAYERS (Host) -->
         <div class="mb-8" id="host-only-players">
-          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Players</h3>
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Players (tokens)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="player-file" accept="image/*" class="hidden" onchange="importAsset(event, 'player')">
             <label for="player-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
             <input type="text" id="player-url" class="url-field" placeholder="URL Imagem...">
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('player-url', 'player')">Adicionar Player</button>
           </div>
+          <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
+            Players entram por padrão em layer 3.
+          </p>
         </div>
 
+        <!-- ASSETS (Host) -->
         <div class="mb-8" id="host-only-assets">
-          <h3 class="text-xs font-semibold uppercase mb-3 opacity-70">Assets</h3>
+          <h3 class="text-xs font-semibold uppercase mb-4 opacity-70">Assets (tudo que não é player nem mapa)</h3>
           <div class="bg-black/40 p-4 border border-dashed border-gold/30 rounded-xl">
             <input type="file" id="asset-file" accept="image/*" class="hidden" onchange="importAsset(event, 'asset')">
             <label for="asset-file" class="btn-luxury block text-center mb-3 cursor-pointer bg-white/5">Ficheiro Local</label>
             <input type="text" id="asset-url" class="url-field" placeholder="URL Imagem...">
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('asset-url', 'asset')">Adicionar Asset</button>
           </div>
-          <p class="mini" style="margin-top:8px;">Assets = tudo que não é player nem mapa.</p>
+          <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
+            Assets entram por padrão em layer 2.
+          </p>
         </div>
 
         <div class="mt-auto pt-6 border-t border-gold/20" id="host-only-clear">
@@ -500,58 +577,50 @@
 
   <div id="viewport">
     <div id="canvas-container">
-      <div id="map-container"></div>
+      <div id="map-container" class="map-layer"></div>
       <div id="grid-layer" class="grid-layer"></div>
+      <canvas id="fog-layer"></canvas>
     </div>
   </div>
 
   <script>
     /********************************************************************
-     * ✅ Implementado nesta versão:
-     * - Save/Load de Cenas (localStorage + export/import JSON)
-     * - Perfil/Biblioteca (perfil.json) com abas (Mapas/Players/Assets)
-     * - Salva URLs + Arquivos (DataURL base64)
-     * - Fog por token: cada token pode emitir visão com raio próprio
-     * - Para PLAYER: tokens fora de qualquer visão ficam invisíveis (exceto mapa)
-     * - Removeu token-controls (barra em cima). Só Inspector edita.
-     * - Layers dinâmicas (0 mapa). Mapa palpável com inércia.
-     * - Host autoritativo via PeerJS: players só mexem em tokens desbloqueados e layer destrancada.
+     * ✅ ADIÇÕES NESTA VERSÃO
+     * - FO G por elemento (token): visionEnabled + fogRadius
+     * - Player: tudo fora do fog (exceto mapa) fica invisível
+     * - Inspector grande (removeu token-controls)
+     * - Saves/Cenas incluem fog
      ********************************************************************/
 
-    // ===== Util =====
-    const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+    // ===== UTIL =====
     const generateUUID = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
-    const nowISO = ()=> new Date().toISOString();
 
     function showNotification(msg){
       const n=document.getElementById('notification');
       n.innerText=msg;
       n.classList.add('active');
-      setTimeout(()=>n.classList.remove('active'),1600);
+      setTimeout(()=>n.classList.remove('active'),2000);
     }
 
-    // ===== Elements =====
+    // ===== ELEMENTOS =====
     const canvas = document.getElementById('canvas-container');
     const viewport = document.getElementById('viewport');
     const mapContainer = document.getElementById('map-container');
     const gridLayer = document.getElementById('grid-layer');
+    const fogCanvas = document.getElementById('fog-layer');
+    const fogCtx = fogCanvas.getContext('2d');
     const sidebar = document.getElementById('sidebar');
     const diceLogEntries = document.getElementById('dice-entries');
-
-    const fogOverlay = document.getElementById('fog-overlay');
-    const fogCanvas  = document.getElementById('fog-canvas');
-    const fogCtx = fogCanvas.getContext('2d');
 
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const networkPanel = document.getElementById('network-panel');
+    const scenePanel = document.getElementById('scene-panel');
 
     const roleText = document.getElementById('role-text');
     const tinyStatus = document.getElementById('tiny-status');
     const tinyRoom = document.getElementById('tiny-room');
 
-    const hostOnlyScenes = document.getElementById('host-only-scenes');
-    const hostOnlyProfile = document.getElementById('host-only-profile');
     const hostOnlyMap = document.getElementById('host-only-map');
     const hostOnlyPlayers = document.getElementById('host-only-players');
     const hostOnlyAssets = document.getElementById('host-only-assets');
@@ -562,51 +631,55 @@
     const btnInvite = document.getElementById('btn-invite');
     const btnD20 = document.getElementById('btn-d20');
     const btnD6 = document.getElementById('btn-d6');
-    const btnFog = document.getElementById('btn-fog');
+    const btnSaveScene = document.getElementById('btn-save-scene');
+    const btnLibrary = document.getElementById('btn-library');
     const btnLayers = document.getElementById('btn-layers');
-    const btnInspector = document.getElementById('btn-inspector');
 
+    // Inspector
+    const inspector = document.getElementById('inspector');
+    const inspectorSub = document.getElementById('inspector-sub');
+    const insLayer = document.getElementById('ins-layer');
+    const insX = document.getElementById('ins-x');
+    const insY = document.getElementById('ins-y');
+    const insW = document.getElementById('ins-w');
+    const insH = document.getElementById('ins-h');
+    const insRot = document.getElementById('ins-rot');
+    const insZoom = document.getElementById('ins-zoom');
+    const insFit = document.getElementById('ins-fit');
+    const insVision = document.getElementById('ins-vision');
+    const insFog = document.getElementById('ins-fog');
+
+    // Biblioteca
+    const libraryPanel = document.getElementById('library-panel');
+    const libraryGrid = document.getElementById('library-grid');
+    const librarySearch = document.getElementById('library-search');
+    const libraryCount = document.getElementById('library-count');
+    let libraryTab = "maps";
+    const library = { maps: [], players: [], assets: [] };
+
+    // Camadas
     const layersPanel = document.getElementById('layers-panel');
     const layersList = document.getElementById('layers-list');
 
-    const inspector = document.getElementById('inspector');
-    const inspectorSub = document.getElementById('inspector-sub');
-
-    const iName = document.getElementById('i-name');
-    const iLayer = document.getElementById('i-layer');
-    const iSize  = document.getElementById('i-size');
-    const iRot   = document.getElementById('i-rot');
-    const iZoom  = document.getElementById('i-zoom');
-    const iFit   = document.getElementById('i-fit');
-    const iFog   = document.getElementById('i-fog');
-
-    const vName  = document.getElementById('v-name');
-    const vLayer = document.getElementById('v-layer');
-    const vLocked= document.getElementById('v-locked');
-    const vSize  = document.getElementById('v-size');
-    const vRot   = document.getElementById('v-rot');
-    const vZoom  = document.getElementById('v-zoom');
-    const vFit   = document.getElementById('v-fit');
-    const vFog   = document.getElementById('v-fog');
-
-    const fogEmitterPill = document.getElementById('i-fog-emitter');
-
-    // ===== Camera =====
+    // ===== CAMERA =====
     let scale = 1;
     let posX = window.innerWidth/2 - 5000;
     let posY = window.innerHeight/2 - 5000;
-    let isPanning=false;
-    let startPan={x:0,y:0};
-    function updateTransform(){ canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`; }
+    let isPanning = false;
+    let startPan = {x:0,y:0};
+
+    function updateTransform(){
+      canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    }
     updateTransform();
 
-    // ===== Selection =====
-    let selectedToken=null;
+    // ===== SELEÇÃO =====
+    let selectedToken = null;
 
-    // ===== Networking =====
-    let peer, connections=[], hostConnection=null;
-    let myId=null;
-    let isHost=false;
+    // ===== REDE =====
+    let peer, connections = [], hostConnection = null;
+    let myId = null;
+    let isHost = false;
 
     const PEER_ICE_CONFIG = {
       iceServers: [
@@ -616,253 +689,106 @@
       ]
     };
 
-    // ===== State (host authoritative) =====
-    const state = {
-      version: 1,
-      map: { src:null, locked:false, x:0, y:0 }, // layer 0
-      tokens: {}, // id -> token
-      fog: {
-        enabled: false,
-        darkness: 0.90,   // 0..1
-        softness: 0.20    // 0..1
-      }
-    };
+    // ===== SISTEMA DE CAMADAS =====
+    const layerState = { visible: {}, locked: {} };
 
-    // Layers (host controls)
-    const layerState = {
-      visible: {}, // layer -> bool
-      locked: {}   // layer -> bool
-    };
     function ensureLayerDefaults(layer){
       if (layer == null) return;
-      const l=Number(layer);
-      if (!(l in layerState.visible)) layerState.visible[l]=true;
-      if (!(l in layerState.locked)) layerState.locked[l]=false;
+      if (!(layer in layerState.visible)) layerState.visible[layer] = true;
+      if (!(layer in layerState.locked)) layerState.locked[layer] = false;
     }
+
     function computeTokenZIndex(layer){
-      const base=100;
-      const l=Number(layer||1);
-      return base + l*10;
+      const base = 100;
+      const l = Number(layer || 1);
+      return base + (l * 10);
     }
 
-    // ===== Storage: scenes + profile =====
-    const LS_SCENES_KEY = "ttl_scenes_v1";      // { scenes: {name: sceneObj}, order:[name...] }
-    const LS_PROFILE_KEY= "ttl_profile_v1";     // profile obj
-
-    const defaultProfile = ()=>({
-      version: 1,
-      updatedAt: nowISO(),
-      maps: [],
-      players: [],
-      assets: []
-    });
-
-    let profileTab = "maps";
-    function setProfileTab(tab){
-      profileTab=tab;
-      document.getElementById('tab-maps').classList.toggle('active', tab==="maps");
-      document.getElementById('tab-players').classList.toggle('active', tab==="players");
-      document.getElementById('tab-assets').classList.toggle('active', tab==="assets");
-      renderProfileGrid();
-    }
-
-    function loadProfile(){
-      try{
-        const raw=localStorage.getItem(LS_PROFILE_KEY);
-        if(!raw) return defaultProfile();
-        const obj=JSON.parse(raw);
-        if(!obj || typeof obj!=="object") return defaultProfile();
-        return { ...defaultProfile(), ...obj };
-      }catch(e){
-        return defaultProfile();
-      }
-    }
-    function saveProfileObj(p){
-      p.updatedAt = nowISO();
-      localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(p));
-    }
-    let profile = loadProfile();
-
-    function loadScenesStore(){
-      try{
-        const raw=localStorage.getItem(LS_SCENES_KEY);
-        if(!raw) return {version:1, order:[], scenes:{}};
-        const obj=JSON.parse(raw);
-        if(!obj || typeof obj!=="object") return {version:1, order:[], scenes:{}};
-        obj.order = obj.order || [];
-        obj.scenes = obj.scenes || {};
-        return obj;
-      }catch(e){
-        return {version:1, order:[], scenes:{}};
-      }
-    }
-    function saveScenesStore(store){
-      localStorage.setItem(LS_SCENES_KEY, JSON.stringify(store));
-    }
-    let scenesStore = loadScenesStore();
-
-    // ===== Fog drawing (multiple emitters union) =====
-    function resizeFogCanvas(){
-      const dpr = window.devicePixelRatio || 1;
-      fogCanvas.width = Math.floor(window.innerWidth * dpr);
-      fogCanvas.height= Math.floor(window.innerHeight * dpr);
-      fogCanvas.style.width = window.innerWidth+"px";
-      fogCanvas.style.height= window.innerHeight+"px";
-      fogCtx.setTransform(dpr,0,0,dpr,0,0);
-      requestFogRedraw();
-    }
-    window.addEventListener('resize', ()=>{ resizeFogCanvas(); });
-    resizeFogCanvas();
-
-    let fogRAF=null;
-    function requestFogRedraw(){
-      if (fogRAF) return;
-      fogRAF=requestAnimationFrame(()=>{
-        fogRAF=null;
-        drawFog();
-        if (!isHost) updatePlayerVisibilityByFog(); // players hide tokens
+    function applyLayerVisibilityToDOM(){
+      document.querySelectorAll('.token').forEach(t=>{
+        const layer = Number(t.dataset.layer || 1);
+        ensureLayerDefaults(layer);
+        const vis = !!layerState.visible[layer];
+        t.style.display = vis ? "" : "none";
       });
+      // Player também passa por fog
+      if (!isHost) updateFogAndVisibility();
     }
-
-    function tokenCenterBoardPx(tokenEl){
-      const x = parseFloat(tokenEl.style.left) + (parseFloat(tokenEl.style.width)/2);
-      const y = parseFloat(tokenEl.style.top)  + (parseFloat(tokenEl.style.height)/2);
-      return {x,y};
-    }
-    function boardToScreen(x,y){
-      return {
-        sx: posX + x*scale,
-        sy: posY + y*scale
-      };
-    }
-
-    function drawFog(){
-      const enabled = !!state.fog.enabled;
-      // Host: fog pode ficar desligado visualmente (ele vê tudo), mas se enabled, podemos mostrar overlay leve opcional.
-      // Player: overlay sempre ON quando enabled.
-      const showOverlay = enabled && (!isHost); // somente player vê overlay
-      fogOverlay.classList.toggle('on', showOverlay);
-
-      // Mesmo que host não veja, a lógica de visibilidade do player depende disso
-      // Desenha apenas se for player (ou se quiser ver em debug), aqui desenhamos sempre para simplificar
-      fogCtx.clearRect(0,0,window.innerWidth,window.innerHeight);
-
-      if (!enabled){
-        return;
-      }
-
-      // Preenche com preto
-      const alpha = clamp(Number(state.fog.darkness||0.9), 0.1, 0.98);
-      fogCtx.globalCompositeOperation = 'source-over';
-      fogCtx.fillStyle = `rgba(0,0,0,${alpha})`;
-      fogCtx.fillRect(0,0,window.innerWidth,window.innerHeight);
-
-      // Abre buracos com union: destination-out
-      fogCtx.globalCompositeOperation = 'destination-out';
-
-      const softness = clamp(Number(state.fog.softness||0.2), 0.02, 0.6);
-
-      // Emitters = tokens com fogEmitter true
-      const emitters = [];
-      for (const id in state.tokens){
-        const t = state.tokens[id];
-        if (t && t.fogEmitter === true){
-          const el=document.getElementById(`token-${id}`);
-          if (!el) continue;
-          // se layer invisível, ainda pode revelar? normalmente não; aqui revelador ignora visibilidade layer pra fog ser consistente
-          emitters.push({ id, el, radius: clamp(Number(t.visionRadius||600), 50, 8000) });
-        }
-      }
-
-      // Se nenhum emitter, tudo escuro para player (overlay total)
-      for (const em of emitters){
-        const c = tokenCenterBoardPx(em.el);
-        const scr = boardToScreen(c.x, c.y);
-        const r = em.radius * scale;
-
-        const inner = Math.max(0, r*(1-softness));
-        const grad = fogCtx.createRadialGradient(scr.sx, scr.sy, inner, scr.sx, scr.sy, r);
-        grad.addColorStop(0, "rgba(0,0,0,1)");
-        grad.addColorStop(1, "rgba(0,0,0,0)");
-        fogCtx.fillStyle = grad;
-        fogCtx.beginPath();
-        fogCtx.arc(scr.sx, scr.sy, r, 0, Math.PI*2);
-        fogCtx.fill();
-      }
-
-      fogCtx.globalCompositeOperation = 'source-over';
-    }
-
-    // Player: hide tokens that are outside all vision areas (except map)
-    function updatePlayerVisibilityByFog(){
-      if (isHost) return;
-      const enabled = !!state.fog.enabled;
-
-      const emitterCenters = [];
-      if (enabled){
-        for (const id in state.tokens){
-          const t = state.tokens[id];
-          if (t && t.fogEmitter === true){
-            const el=document.getElementById(`token-${id}`);
-            if (!el) continue;
-            const c=tokenCenterBoardPx(el);
-            const r=clamp(Number(t.visionRadius||600), 50, 8000);
-            emitterCenters.push({x:c.x, y:c.y, r});
-          }
-        }
-      }
-
-      document.querySelectorAll('.token').forEach(el=>{
-        const id=el.dataset.uuid;
-        const tok=state.tokens[id];
-        if (!tok) return;
-
-        // se fog OFF: tudo visível
-        if (!enabled){
-          el.classList.remove('hidden-by-fog');
-          return;
-        }
-
-        // Se não existe nenhum emitter, tudo some (tokens) pro player
-        if (emitterCenters.length === 0){
-          el.classList.add('hidden-by-fog');
-          return;
-        }
-
-        const c=tokenCenterBoardPx(el);
-        let visible=false;
-        for (const em of emitterCenters){
-          const dx=c.x-em.x, dy=c.y-em.y;
-          if ((dx*dx+dy*dy) <= (em.r*em.r)){
-            visible=true; break;
-          }
-        }
-        if (visible) el.classList.remove('hidden-by-fog');
-        else el.classList.add('hidden-by-fog');
-      });
-    }
-
-    // ===== UI toggles =====
-    function toggleHUD(){ document.body.classList.toggle('hud-hidden'); }
-    function toggleSidebar(){ sidebar.classList.toggle('open'); }
-    function toggleGrid(){ gridLayer.style.display = (gridLayer.style.display === 'none') ? 'block' : 'none'; }
-    function toggleNetworkPanel(){ networkPanel.classList.toggle('show'); }
 
     function toggleLayersPanel(){
       if (!isHost) return alert("Apenas o Host gerencia camadas.");
       layersPanel.classList.toggle('show');
       rebuildLayersPanel();
     }
-    function toggleInspector(){
+
+    function rebuildLayersPanel(){
       if (!isHost) return;
-      inspector.classList.toggle('show');
-      syncInspectorFromSelection();
+
+      const layers = new Set();
+      Object.values(state.tokens).forEach(t => layers.add(Number(t.layer || 1)));
+      const maxLayer = layers.size ? Math.max(...Array.from(layers)) : 3;
+
+      layersList.innerHTML = "";
+
+      for (let l=1; l<=Math.max(maxLayer,3); l++){
+        ensureLayerDefaults(l);
+
+        const row = document.createElement('div');
+        row.className = "layer-row";
+
+        const left = document.createElement('div');
+        left.innerHTML = `<b>Layer ${l}</b> <span style="font-size:10px;opacity:.7;">(tokens)</span>`;
+
+        const actions = document.createElement('div');
+        actions.className = "layer-actions";
+
+        const vis = document.createElement('div');
+        vis.className = "pill " + (layerState.visible[l] ? "active" : "");
+        vis.innerText = layerState.visible[l] ? "Visível" : "Oculta";
+        vis.onclick = () => {
+          layerState.visible[l] = !layerState.visible[l];
+          const action = { type:"LAYER_SET", layer:l, prop:"visible", value: layerState.visible[l] };
+          applyAction(action,false);
+          broadcastACT(action);
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+        };
+
+        const lock = document.createElement('div');
+        lock.className = "pill " + (layerState.locked[l] ? "active" : "");
+        lock.innerText = layerState.locked[l] ? "Trancada" : "Livre";
+        lock.onclick = () => {
+          layerState.locked[l] = !layerState.locked[l];
+          const action = { type:"LAYER_SET", layer:l, prop:"locked", value: layerState.locked[l] };
+          applyAction(action,false);
+          broadcastACT(action);
+          rebuildLayersPanel();
+        };
+
+        actions.appendChild(vis);
+        actions.appendChild(lock);
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        layersList.appendChild(row);
+      }
     }
+
+    // ===== ESTADO (Host autoritativo) =====
+    const state = {
+      map: { src:null, locked:false, x:0, y:0 },
+      tokens: {}
+    };
+
+    // ===== UI =====
+    function toggleHUD(){ document.body.classList.toggle('hud-hidden'); }
+    function toggleSidebar(){ sidebar.classList.toggle('open'); }
+    function toggleGrid(){ gridLayer.style.display = (gridLayer.style.display === 'none') ? 'block' : 'none'; }
+    function toggleNetworkPanel(){ networkPanel.classList.toggle('show'); }
 
     function setRoleUI(){
       roleText.textContent = isHost ? "HOST (Mestre)" : "PLAYER";
-      hostOnlyScenes.style.display = isHost ? "" : "none";
-      hostOnlyProfile.style.display = isHost ? "" : "none";
+
       hostOnlyMap.style.display = isHost ? "" : "none";
       hostOnlyPlayers.style.display = isHost ? "" : "none";
       hostOnlyAssets.style.display = isHost ? "" : "none";
@@ -873,13 +799,19 @@
       btnInvite.style.display = isHost ? "" : "none";
       btnD20.style.display = isHost ? "" : "none";
       btnD6.style.display = isHost ? "" : "none";
-      btnFog.style.display = isHost ? "" : "none";
+      btnSaveScene.style.display = isHost ? "" : "none";
+      btnLibrary.style.display = isHost ? "" : "none";
       btnLayers.style.display = isHost ? "" : "none";
-      btnInspector.style.display = isHost ? "" : "none";
-      inspector.style.display = isHost ? "" : "none";
+      scenePanel.style.display = isHost ? "" : "none";
+      layersPanel.style.display = isHost ? "" : "none";
+      libraryPanel.style.display = isHost ? "" : "none";
+
+      // Fog canvas só pra player
+      fogCanvas.style.display = isHost ? "none" : "block";
+      if (!isHost) updateFogAndVisibility();
     }
 
-    // ===== Invite =====
+    // ===== Convite =====
     function copyInviteLink(){
       if (!myId) return alert("Aguarde a conexão...");
       if (!isHost) return alert("Apenas o Host copia convite.");
@@ -892,13 +824,13 @@
       } else prompt("Copie:", invite);
     }
 
-    // ===== Camera controls =====
+    // ===== PAN/ZOOM viewport =====
     viewport.addEventListener('wheel',(e)=>{
       if (e.ctrlKey) return;
       e.preventDefault();
       const zoomSpeed=.15;
       const delta = e.deltaY>0 ? -zoomSpeed : zoomSpeed;
-      const newScale = clamp(scale+delta, .05, 4);
+      const newScale = Math.min(Math.max(.05, scale+delta), 4);
 
       const mx=e.clientX,my=e.clientY;
       const cx=(mx-posX)/scale, cy=(my-posY)/scale;
@@ -907,7 +839,6 @@
       posX = mx - cx*scale;
       posY = my - cy*scale;
       updateTransform();
-      requestFogRedraw();
     },{passive:false});
 
     window.addEventListener('mousedown',(e)=>{
@@ -922,203 +853,202 @@
         posX=e.clientX-startPan.x;
         posY=e.clientY-startPan.y;
         updateTransform();
-        requestFogRedraw();
       }
     });
     window.addEventListener('mouseup',()=>{ isPanning=false; viewport.style.cursor='grab'; });
 
-    // ===== Map palpable with inertia =====
+    // ===== MAPA “PALPÁVEL” COM INÉRCIA =====
     let mapDragging=false;
     let mapDragStart={mx:0,my:0,x:0,y:0};
     let mapVel={vx:0,vy:0};
     let mapLastMove={t:0,x:0,y:0};
     let mapInertiaRAF=null;
 
-    function setMapOffset(x,y){
-      state.map.x = x;
-      state.map.y = y;
-      mapContainer.style.transform = `translate(${x}px, ${y}px)`;
-    }
-    function stopMapInertia(){
-      if (mapInertiaRAF) cancelAnimationFrame(mapInertiaRAF);
-      mapInertiaRAF=null;
-    }
-    function startMapInertia(){
-      stopMapInertia();
-      const friction=0.92, minV=0.05;
-
-      const step=()=>{
-        mapVel.vx*=friction;
-        mapVel.vy*=friction;
-
-        if (Math.abs(mapVel.vx)<minV && Math.abs(mapVel.vy)<minV){
-          mapVel.vx=0; mapVel.vy=0;
-          stopMapInertia();
-          if (isHost){
-            const a={type:"MAP_MOVE", x:state.map.x, y:state.map.y};
-            applyAction(a,false); broadcastACT(a);
-          }
-          return;
-        }
-        setMapOffset(state.map.x + mapVel.vx, state.map.y + mapVel.vy);
-        mapInertiaRAF=requestAnimationFrame(step);
-      };
-      mapInertiaRAF=requestAnimationFrame(step);
-    }
-
     function setMapLockLocal(lock, emit){
       state.map.locked = !!lock;
-      mapContainer.classList.toggle('locked', state.map.locked);
-      if (state.map.locked){
+      if (state.map.locked) mapContainer.classList.add('locked');
+      else mapContainer.classList.remove('locked');
+
+      if (state.map.locked) {
         btnLockMap.innerHTML="🔒 Mapa Fixo"; btnLockMap.classList.add('active');
       } else {
         btnLockMap.innerHTML="🔓 Mapa Móvel"; btnLockMap.classList.remove('active');
       }
-      if (emit && isHost){
-        const a={type:"MAP_LOCK", locked:state.map.locked};
-        applyAction(a,false); broadcastACT(a);
+
+      if (emit){
+        if (!isHost) return;
+        const action = { type:"MAP_LOCK", locked: state.map.locked };
+        applyAction(action,false);
+        broadcastACT(action);
       }
     }
+
     function toggleMapLock(){
       if (!isHost) return;
-      setMapLockLocal(!state.map.locked,true);
+      setMapLockLocal(!state.map.locked, true);
     }
 
-    mapContainer.addEventListener('mousedown',(e)=>{
-      if (!isHost) return;
-      if (state.map.locked) return;
-      const img = mapContainer.querySelector('img');
-      if (!img) return;
+    function setMapOffset(x, y){
+      state.map.x = x;
+      state.map.y = y;
+      mapContainer.style.transform = `translate(${x}px, ${y}px)`;
+    }
 
-      if (e.button!==0 || e.altKey) return;
-      e.preventDefault();
-      e.stopPropagation();
+    function stopMapInertia(){
+      if (mapInertiaRAF) cancelAnimationFrame(mapInertiaRAF);
+      mapInertiaRAF = null;
+    }
 
-      mapDragging=true;
-      mapContainer.classList.add('dragging');
+    function startMapInertia(){
       stopMapInertia();
+      const friction = 0.92;
+      const minV = 0.05;
 
-      mapDragStart={mx:e.clientX,my:e.clientY,x:state.map.x,y:state.map.y};
-      mapVel={vx:0,vy:0};
-      mapLastMove={t:performance.now(), x:state.map.x, y:state.map.y};
+      const step = () => {
+        mapVel.vx *= friction;
+        mapVel.vy *= friction;
 
-      const onMove=(me)=>{
-        if (!mapDragging) return;
-        const dx=(me.clientX-mapDragStart.mx)/scale;
-        const dy=(me.clientY-mapDragStart.my)/scale;
+        if (Math.abs(mapVel.vx) < minV && Math.abs(mapVel.vy) < minV) {
+          mapVel.vx = 0; mapVel.vy = 0;
+          stopMapInertia();
 
-        const nx=mapDragStart.x+dx;
-        const ny=mapDragStart.y+dy;
-        setMapOffset(nx,ny);
+          if (isHost){
+            const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
+            applyAction(action,false);
+            broadcastACT(action);
+          }
+          return;
+        }
 
-        const now=performance.now();
-        const dt=Math.max(1, now-mapLastMove.t);
-        mapVel.vx=(nx-mapLastMove.x)/dt*16;
-        mapVel.vy=(ny-mapLastMove.y)/dt*16;
-        mapLastMove={t:now,x:nx,y:ny};
+        setMapOffset(state.map.x + mapVel.vx, state.map.y + mapVel.vy);
+
+        mapInertiaRAF = requestAnimationFrame(step);
       };
 
-      const onUp=()=>{
-        mapDragging=false;
-        mapContainer.classList.remove('dragging');
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
+      mapInertiaRAF = requestAnimationFrame(step);
+    }
 
-        const a={type:"MAP_MOVE", x:state.map.x, y:state.map.y};
-        applyAction(a,false); broadcastACT(a);
+    function setupMapDrag(){
+      mapContainer.addEventListener('mousedown', (e)=>{
+        if (!isHost) return;
+        if (state.map.locked) return;
+        const img = mapContainer.querySelector('img');
+        if (!img) return;
 
-        startMapInertia();
-      };
+        if (e.button !== 0 || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
 
-      document.addEventListener('mousemove',onMove);
-      document.addEventListener('mouseup',onUp);
-    });
+        mapDragging = true;
+        mapContainer.classList.add('dragging');
+        stopMapInertia();
+
+        mapDragStart = { mx:e.clientX, my:e.clientY, x:state.map.x, y:state.map.y };
+        mapVel = { vx:0, vy:0 };
+        mapLastMove = { t: performance.now(), x: state.map.x, y: state.map.y };
+
+        const onMove = (me) => {
+          if (!mapDragging) return;
+
+          const dx = (me.clientX - mapDragStart.mx) / scale;
+          const dy = (me.clientY - mapDragStart.my) / scale;
+
+          const nx = mapDragStart.x + dx;
+          const ny = mapDragStart.y + dy;
+          setMapOffset(nx, ny);
+
+          const now = performance.now();
+          const dt = Math.max(1, now - mapLastMove.t);
+          mapVel.vx = (nx - mapLastMove.x) / dt * 16;
+          mapVel.vy = (ny - mapLastMove.y) / dt * 16;
+          mapLastMove = { t: now, x: nx, y: ny };
+        };
+
+        const onUp = () => {
+          mapDragging = false;
+          mapContainer.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+
+          startMapInertia();
+
+          const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
+          applyAction(action,false);
+          broadcastACT(action);
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+    setupMapDrag();
 
     function applyMapLocal(src, emit){
-      const img=new Image();
-      img.onload=()=>{
-        mapContainer.innerHTML="";
+      const img = new Image();
+      img.onload = () => {
+        mapContainer.innerHTML = "";
         mapContainer.appendChild(img);
 
-        // Centraliza visual
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
-        posX = window.innerWidth/2 - (img.width*scale)/2;
-        posY = window.innerHeight/2 - (img.height*scale)/2;
+        posX = window.innerWidth/2 - (img.width * scale)/2;
+        posY = window.innerHeight/2 - (img.height * scale)/2;
         updateTransform();
-        requestFogRedraw();
-      };
-      img.src=src;
 
-      if (emit && isHost){
-        const a={type:"MAP_UPDATE", src};
-        applyAction(a,false); broadcastACT(a);
+        setMapOffset(state.map.x || 0, state.map.y || 0);
+      };
+      img.src = src;
+
+      if (emit){
+        if (!isHost) return;
+        const action = { type:"MAP_UPDATE", src };
+        applyAction(action,false);
+        broadcastACT(action);
       }
     }
 
-    // ===== Token helpers =====
+    // ===== TOKENS =====
     function normalizeTokenProps(id, src, type, props){
-      const p=props||{};
-      const layer = Number(p.layer ?? 1);
+      const p = props || {};
+      const layer = Number(p.layer ?? 2);
       ensureLayerDefaults(layer);
       return {
-        id, src, type,
+        id,
+        src,
+        type,
         kind: p.kind ?? "asset",
-        name: p.name ?? "",
         layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
-        w: p.w ?? 180,
-        h: p.h ?? 180,
+        w: p.w ?? 140,
+        h: p.h ?? 140,
         rotation: p.rotation ?? 0,
         flipped: p.flipped ?? "false",
         innerZoom: p.innerZoom ?? 1,
         locked: p.locked ?? "false",
         fitMode: p.fitMode ?? "contain",
-        fogEmitter: !!p.fogEmitter,
-        visionRadius: p.visionRadius ?? 600
+
+        // FOG por token:
+        vision: p.vision ?? "off",     // "on" | "off"
+        fogRadius: Number(p.fogRadius ?? 0)
       };
     }
-    function updateImgTransform(token){
-      const el = token.querySelector('img') || token.querySelector('iframe');
-      if (!el) return;
-      if (el.tagName==="IMG") el.style.objectFit = token.dataset.fitMode || "contain";
 
-      const rotation = token.dataset.rotation || 0;
-      const flipped = token.dataset.flipped === "true";
-      const innerZoom= token.dataset.innerZoom || 1;
-      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped?-1:1})`;
-    }
-
-    function applyLayerVisibilityToDOM(){
-      for (const el of document.querySelectorAll('.token')){
-        const layer = Number(el.dataset.layer || 1);
-        ensureLayerDefaults(layer);
-        el.style.display = layerState.visible[layer] ? "" : "none";
-      }
-      if (!isHost) updatePlayerVisibilityByFog();
-    }
-
-    // ===== Tokens: create/add DOM =====
-    function hostCreateToken(src, kind){
+    function hostCreateToken(src, contentType, kind){
       if (!isHost) return;
 
       const id = generateUUID();
-      const contentType = "image";
+      const isImg = contentType === "image";
+      let width = isImg ? 160 : 400;
+      let height = isImg ? 160 : 225;
 
-      // layer dinâmica: se existe token, usa a maior layer atual; senão, layer 1
-      const layers = Object.values(state.tokens).map(t=>Number(t.layer||1));
-      const baseLayer = layers.length ? Math.max(...layers) : 1;
-      ensureLayerDefaults(baseLayer);
-
-      let width = 180, height=180;
+      const layerDefault = (kind === "player") ? 3 : 2;
 
       const centerX = (window.innerWidth/2 - posX)/scale;
       const centerY = (window.innerHeight/2 - posY)/scale;
 
       const props = {
         kind,
-        name: "",
-        layer: baseLayer,
+        layer: layerDefault,
         x: (centerX - width/2) + "px",
         y: (centerY - height/2) + "px",
         w: width,
@@ -1128,112 +1058,105 @@
         innerZoom: 1,
         locked: "false",
         fitMode: "contain",
-        fogEmitter: false,
-        visionRadius: 600
+
+        vision: "off",
+        fogRadius: 0
       };
 
-      const a = { type:"CREATE_TOKEN", id, src, contentType, props };
-      applyAction(a,false); broadcastACT(a);
+      const action = { type:"CREATE_TOKEN", id, src, contentType, props };
+      applyAction(action,false);
+      broadcastACT(action);
+
       rebuildLayersPanel();
       applyLayerVisibilityToDOM();
-      requestFogRedraw();
+      updateSceneSizeEstimate();
     }
 
     function addTokenLocal(src, contentType, id, props){
       if (document.getElementById(`token-${id}`)) return;
 
-      const token=document.createElement('div');
-      token.id=`token-${id}`;
-      token.className="token";
-      token.dataset.uuid=id;
-      token.dataset.type=contentType;
+      const token = document.createElement('div');
+      token.id = `token-${id}`;
+      token.className = "token";
+      token.dataset.uuid = id;
+      token.dataset.type = contentType;
 
-      const layer = Number(props?.layer ?? 1);
+      const layer = Number(props?.layer ?? 2);
       const kind = props?.kind ?? "asset";
       ensureLayerDefaults(layer);
 
       token.dataset.layer = String(layer);
       token.dataset.kind = kind;
-      token.dataset.name = props?.name ?? "";
 
-      const width = props?.w ? parseInt(props.w) : 180;
-      const height= props?.h ? parseInt(props.h) : 180;
-      token.style.width = width+"px";
-      token.style.height= height+"px";
+      token.style.zIndex = String(computeTokenZIndex(layer));
 
-      token.style.left = props?.x ?? "0px";
-      token.style.top  = props?.y ?? "0px";
+      const width = props?.w ? parseInt(props.w) : (contentType==="web"?400:160);
+      const height = props?.h ? parseInt(props.h) : (contentType==="web"?225:160);
+      token.style.width = width + "px";
+      token.style.height = height + "px";
+
+      const x = props?.x ?? "0px";
+      const y = props?.y ?? "0px";
+      token.style.left = x;
+      token.style.top = y;
 
       token.dataset.sizeW = width;
       token.dataset.sizeH = height;
       token.dataset.rotation = props?.rotation ?? 0;
-      token.dataset.flipped  = props?.flipped ?? "false";
-      token.dataset.innerZoom= props?.innerZoom ?? 1;
-      token.dataset.locked   = props?.locked ?? "false";
-      token.dataset.fitMode  = props?.fitMode ?? "contain";
-      token.dataset.fogEmitter = (props?.fogEmitter ? "true" : "false");
-      token.dataset.visionRadius = props?.visionRadius ?? 600;
+      token.dataset.flipped = props?.flipped ?? "false";
+      token.dataset.innerZoom = props?.innerZoom ?? 1;
+      token.dataset.locked = props?.locked ?? "false";
+      token.dataset.fitMode = props?.fitMode ?? "contain";
 
-      token.style.zIndex = String(computeTokenZIndex(layer));
-      token.style.display = layerState.visible[layer] ? "" : "none";
+      // fog props
+      token.dataset.vision = props?.vision ?? "off";
+      token.dataset.fogRadius = String(Number(props?.fogRadius ?? 0));
 
-      if (token.dataset.locked==="true"){
+      if (token.dataset.locked === "true"){
         token.classList.add('locked');
-        token.style.pointerEvents="none";
+        token.style.pointerEvents = "none";
       }
 
-      const blocker=document.createElement('div');
-      blocker.className="token-blocker";
+      const blocker = document.createElement('div');
+      blocker.className = "token-blocker";
 
-      const wrapper=document.createElement('div');
-      wrapper.className="token-content-wrapper";
+      const wrapper = document.createElement('div');
+      wrapper.className = "token-content-wrapper";
 
       let content;
-      if (contentType==="image"){
-        content=document.createElement('img');
-        content.src=src;
-        // dica: melhora “portrait”
-        content.decoding = "async";
-        content.loading = "lazy";
+      if (contentType === "image"){
+        content = document.createElement('img');
+        content.src = src;
       } else {
-        content=document.createElement('iframe');
-        content.src=src;
+        content = document.createElement('iframe');
+        content.src = src;
         content.setAttribute('frameborder','0');
         content.setAttribute('sandbox','allow-scripts allow-same-origin');
       }
 
-      const handle=document.createElement('div');
-      handle.className="resize-handle";
+      const handle = document.createElement('div');
+      handle.className = "resize-handle";
 
       wrapper.appendChild(content);
       token.appendChild(blocker);
       token.appendChild(wrapper);
       token.appendChild(handle);
-
       canvas.appendChild(token);
-      setTimeout(()=>updateImgTransform(token), 0);
 
-      // Select + Drag
-      token.addEventListener('mousedown',(e)=>{
-        if (e.button!==0 || e.altKey) return;
-        if (token.dataset.locked==="true") return;
-        const layer = Number(token.dataset.layer||1);
-        if (layerState.locked[layer]) return;
+      setTimeout(()=>updateImgTransform(token),10);
 
-        e.stopPropagation();
-        selectToken(token);
-        startDraggingToken(e, token);
-      });
+      // layer visibility
+      const vis = !!layerState.visible[layer];
+      token.style.display = vis ? "" : "none";
 
-      // Resize handle
+      // resize handle (Host only)
       handle.addEventListener('mousedown',(e)=>{
-        if (token.dataset.locked==="true") return;
-        const layer = Number(token.dataset.layer||1);
-        if (layerState.locked[layer]) return;
+        if (!isHost) return;
+        if (token.dataset.locked === "true") return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
         if (e.button!==0) return;
 
         e.stopPropagation(); e.preventDefault();
-
         const startX=e.clientX;
         const startW=parseInt(token.dataset.sizeW);
         const startH=parseInt(token.dataset.sizeH);
@@ -1241,59 +1164,54 @@
 
         let pendingW=startW, pendingH=startH;
 
-        const onMove=(me)=>{
+        function onMove(me){
           const deltaW=((me.clientX-startX)/scale)*1.5;
-          let w=clamp(startW+deltaW, 40, 2500);
-          let h=clamp(Math.round(w*ratio), 40, 2500);
-
-          pendingW=w; pendingH=h;
-          token.dataset.sizeW=pendingW;
-          token.dataset.sizeH=pendingH;
-          token.style.width=pendingW+"px";
-          token.style.height=pendingH+"px";
-          requestFogRedraw();
-        };
-
-        const onUp=()=>{
+          let w=Math.max(40, Math.min(startW+deltaW, 2500));
+          let h=Math.max(40, Math.min(w*ratio, 2500));
+          pendingW=Math.round(w); pendingH=Math.round(h);
+          token.dataset.sizeW=pendingW; token.dataset.sizeH=pendingH;
+          token.style.width=pendingW+"px"; token.style.height=pendingH+"px";
+        }
+        function onUp(){
           document.removeEventListener('mousemove',onMove);
           document.removeEventListener('mouseup',onUp);
-
-          const action={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w:pendingW,h:pendingH}};
-          if (isHost){ applyAction(action,false); broadcastACT(action); }
-          else sendREQ(action);
-        };
-
+          const action={ type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w:pendingW,h:pendingH} };
+          applyAction(action,false); broadcastACT(action);
+          updateSceneSizeEstimate();
+        }
         document.addEventListener('mousemove',onMove);
         document.addEventListener('mouseup',onUp);
       });
 
-      // Ctrl+wheel resize
-      token.addEventListener('wheel',(e)=>{
-        if (!e.ctrlKey) return;
+      // drag token
+      token.addEventListener('mousedown',(e)=>{
+        if (e.button!==0 || e.altKey) return;
         if (token.dataset.locked==="true") return;
-        const layer = Number(token.dataset.layer||1);
-        if (layerState.locked[layer]) return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+        e.stopPropagation();
+        selectToken(token);
+        startDraggingToken(e, token);
+      });
+    }
 
-        e.preventDefault(); e.stopPropagation();
-        const delta = e.deltaY>0 ? -25 : 25;
+    function updateImgTransform(token){
+      const el = token.querySelector('img') || token.querySelector('iframe');
+      if (!el) return;
 
-        const w0=parseInt(token.dataset.sizeW), h0=parseInt(token.dataset.sizeH);
-        const ratio=h0/w0;
-        const w=clamp(w0+delta, 40, 2500);
-        const h=clamp(Math.round(w*ratio), 40, 2500);
-
-        const action={type:"UPDATE_PROP", id:token.dataset.uuid, prop:"size", value:{w,h}};
-        if (isHost){ applyAction(action,false); broadcastACT(action); }
-        else sendREQ(action);
-      },{passive:false});
+      if (el.tagName === "IMG"){
+        el.style.objectFit = token.dataset.fitMode || "contain";
+      }
+      const rotation = token.dataset.rotation || 0;
+      const flipped = token.dataset.flipped === "true";
+      const innerZoom = token.dataset.innerZoom || 1;
+      el.style.transform = `scale(${innerZoom}) rotate(${rotation}deg) scaleX(${flipped?-1:1})`;
     }
 
     function selectToken(token){
       if (selectedToken) selectedToken.classList.remove('selected');
       selectedToken = token;
       selectedToken.classList.add('selected');
-      syncInspectorFromSelection();
-      requestFogRedraw();
+      openInspectorFor(token);
     }
 
     function startDraggingToken(e, token){
@@ -1308,24 +1226,33 @@
         let dy=(me.clientY-startY)/scale;
         let newX=initialLeft+dx;
         let newY=initialTop+dy;
-
         if (gridLayer.style.display !== 'none'){
           newX=Math.round(newX/50)*50;
           newY=Math.round(newY/50)*50;
         }
         token.style.left=newX+"px";
         token.style.top=newY+"px";
-        requestFogRedraw();
+        // inspector acompanha
+        if (selectedToken && selectedToken.dataset.uuid===token.dataset.uuid) {
+          insX.value = Math.round(newX);
+          insY.value = Math.round(newY);
+        }
       }
+
       function onUp(){
         document.removeEventListener('mousemove',onMove);
         document.removeEventListener('mouseup',onUp);
         if (!moved) return;
 
-        const action={type:"MOVE", id:token.dataset.uuid, x:token.style.left, y:token.style.top};
+        const id=token.dataset.uuid;
+        const action={ type:"MOVE", id, x:token.style.left, y:token.style.top };
+
         if (isHost){ applyAction(action,false); broadcastACT(action); }
         else sendREQ(action);
+
+        updateSceneSizeEstimate();
       }
+
       document.addEventListener('mousemove',onMove);
       document.addEventListener('mouseup',onUp);
     }
@@ -1333,291 +1260,299 @@
     function moveTokenDOM(id,x,y){
       const t=document.getElementById(`token-${id}`);
       if (!t) return;
-      t.style.left=x;
-      t.style.top=y;
-      requestFogRedraw();
+      t.style.left=x; t.style.top=y;
     }
 
     function updateTokenPropDOM(id, prop, value){
       const token=document.getElementById(`token-${id}`);
-      if(!token) return;
+      if (!token) return;
 
-      if (prop==="name"){
-        token.dataset.name = String(value||"");
-      }
-      else if (prop==="locked"){
+      if (prop==="locked"){
         token.dataset.locked = String(value);
         if (String(value)==="true"){
           token.classList.add('locked');
           token.style.pointerEvents="none";
           token.classList.remove('selected');
-          if (selectedToken?.dataset.uuid===id) selectedToken=null;
+          if (selectedToken && selectedToken.dataset.uuid===id) selectedToken=null;
         } else {
           token.classList.remove('locked');
           token.style.pointerEvents="auto";
         }
       } else if (prop==="innerZoom"){
-        token.dataset.innerZoom = value;
-        updateImgTransform(token);
+        token.dataset.innerZoom=value; updateImgTransform(token);
       } else if (prop==="rotation"){
-        token.dataset.rotation = value;
-        updateImgTransform(token);
+        token.dataset.rotation=value; updateImgTransform(token);
       } else if (prop==="flipped"){
-        token.dataset.flipped = value;
-        updateImgTransform(token);
+        token.dataset.flipped=value; updateImgTransform(token);
       } else if (prop==="fitMode"){
-        token.dataset.fitMode = value;
-        updateImgTransform(token);
+        token.dataset.fitMode=value; updateImgTransform(token);
       } else if (prop==="size"){
         token.style.width=value.w+"px";
         token.style.height=value.h+"px";
         token.dataset.sizeW=value.w;
         token.dataset.sizeH=value.h;
       } else if (prop==="layer"){
-        const newLayer=Number(value);
+        const newLayer = Number(value);
         ensureLayerDefaults(newLayer);
-        token.dataset.layer=String(newLayer);
-        token.style.zIndex=String(computeTokenZIndex(newLayer));
-        token.style.display = layerState.visible[newLayer] ? "" : "none";
-      } else if (prop==="fogEmitter"){
-        token.dataset.fogEmitter = value ? "true" : "false";
-      } else if (prop==="visionRadius"){
-        token.dataset.visionRadius = Number(value);
+        token.dataset.layer = String(newLayer);
+        token.style.zIndex = String(computeTokenZIndex(newLayer));
+        const vis = !!layerState.visible[newLayer];
+        token.style.display = vis ? "" : "none";
+      } else if (prop==="vision"){
+        token.dataset.vision = String(value);
+      } else if (prop==="fogRadius"){
+        token.dataset.fogRadius = String(Number(value||0));
       }
 
-      syncInspectorFromSelection();
-      requestFogRedraw();
+      // player aplica fog
+      if (!isHost) updateFogAndVisibility();
+
+      // inspector atualiza se for o selecionado
+      if (selectedToken && selectedToken.dataset.uuid === id){
+        openInspectorFor(selectedToken, true);
+      }
+
+      updateSceneSizeEstimate();
     }
 
     function removeTokenLocal(id){
       const t=document.getElementById(`token-${id}`);
       if (t) t.remove();
-      if (selectedToken?.dataset.uuid===id) selectedToken=null;
-      requestFogRedraw();
-      syncInspectorFromSelection();
+      if (selectedToken && selectedToken.dataset.uuid===id){
+        selectedToken=null;
+        closeInspector();
+      }
+      if (!isHost) updateFogAndVisibility();
     }
 
-    // ===== Inspector sync =====
-    function syncInspectorFromSelection(){
+    // ===== INSPECTOR =====
+    function closeInspector(){
+      inspector.classList.remove('show');
+    }
+
+    function openInspectorFor(token, silent=false){
+      if (!token) return;
+      inspector.classList.add('show');
+
+      const id = token.dataset.uuid;
+      const kind = token.dataset.kind || "asset";
+      const layer = Number(token.dataset.layer||2);
+
+      inspectorSub.innerHTML = `
+        <div><b style="color:var(--gold)">ID:</b> ${id}</div>
+        <div><b style="color:var(--gold)">Tipo:</b> ${kind} &nbsp;|&nbsp; <b style="color:var(--gold)">Layer:</b> ${layer}</div>
+        <div class="muted">Host edita tudo. Player só pode mover tokens destravados.</div>
+      `;
+
+      const canEdit = isHost;
+      const canMoveOnly = !isHost;
+
+      // valores
+      insLayer.value = layer;
+      insX.value = Math.round(parseFloat(token.style.left)||0);
+      insY.value = Math.round(parseFloat(token.style.top)||0);
+      insW.value = Math.round(parseFloat(token.style.width)||0);
+      insH.value = Math.round(parseFloat(token.style.height)||0);
+      insRot.value = Number(token.dataset.rotation||0);
+      insZoom.value = Number(token.dataset.innerZoom||1);
+      insFit.value = token.dataset.fitMode || "contain";
+      insVision.value = (token.dataset.vision||"off");
+      insFog.value = Number(token.dataset.fogRadius||0);
+
+      // habilita/desabilita
+      insLayer.disabled = !canEdit;
+      insW.disabled = !canEdit;
+      insH.disabled = !canEdit;
+      insRot.disabled = !canEdit;
+      insZoom.disabled = !canEdit;
+      insFit.disabled = !canEdit;
+      insVision.disabled = !canEdit;
+      insFog.disabled = !canEdit;
+
+      // Player pode mexer X/Y só por “visualização” (drag manda pro host).
+      insX.disabled = true;
+      insY.disabled = true;
+
+      if (!silent) {
+        // nada
+      }
+    }
+
+    function applyInspectorToToken(){
+      if (!selectedToken) return;
       if (!isHost) return;
 
-      if (!selectedToken){
-        inspectorSub.textContent="Selecione um token.";
-        vName.textContent="-"; vLayer.textContent="-"; vLocked.textContent="-"; vSize.textContent="-";
-        vRot.textContent="-"; vZoom.textContent="-"; vFit.textContent="-"; vFog.textContent="-";
-        iName.value=""; iLayer.value=1;
-        fogEmitterPill.classList.remove('active');
-        return;
-      }
+      const id = selectedToken.dataset.uuid;
 
-      const id=selectedToken.dataset.uuid;
-      inspectorSub.textContent=`Selecionado: ${id.slice(-6)} • ${selectedToken.dataset.kind}`;
+      // layer
+      const layer = Math.max(1, Math.min(50, Number(insLayer.value||2)));
+      const w = Math.max(40, Math.min(2500, Number(insW.value||160)));
+      const h = Math.max(40, Math.min(2500, Number(insH.value||160)));
+      const rot = ((Number(insRot.value||0)%360)+360)%360;
+      const zoom = Math.max(0.2, Math.min(5, Number(insZoom.value||1)));
+      const fit = String(insFit.value||"contain");
+      const vision = String(insVision.value||"off");
+      const fogRadius = Math.max(0, Math.min(5000, Number(insFog.value||0)));
 
-      const name = selectedToken.dataset.name || "";
-      const layer = Number(selectedToken.dataset.layer||1);
-      const locked= (selectedToken.dataset.locked==="true");
-      const w = Number(selectedToken.dataset.sizeW||parseFloat(selectedToken.style.width)||180);
-      const rot= Number(selectedToken.dataset.rotation||0);
-      const zoom=Number(selectedToken.dataset.innerZoom||1);
-      const fit=String(selectedToken.dataset.fitMode||"contain");
-      const fog=Number(selectedToken.dataset.visionRadius||600);
-      const emitter = (selectedToken.dataset.fogEmitter==="true");
+      const actions = [
+        { type:"UPDATE_PROP", id, prop:"layer", value: layer },
+        { type:"UPDATE_PROP", id, prop:"size", value: { w, h } },
+        { type:"UPDATE_PROP", id, prop:"rotation", value: rot },
+        { type:"UPDATE_PROP", id, prop:"innerZoom", value: zoom },
+        { type:"UPDATE_PROP", id, prop:"fitMode", value: fit },
+        { type:"UPDATE_PROP", id, prop:"vision", value: vision },
+        { type:"UPDATE_PROP", id, prop:"fogRadius", value: fogRadius },
+      ];
 
-      vName.textContent = name ? name : "(sem nome)";
-      vLayer.textContent=String(layer);
-      vLocked.textContent=locked ? "TRAVADO" : "LIVRE";
-      vSize.textContent=`${Math.round(w)}px`;
-      vRot.textContent=`${Math.round(rot)}°`;
-      vZoom.textContent=`${zoom.toFixed(2)}x`;
-      vFit.textContent=fit;
-      vFog.textContent=`${Math.round(fog)}px`;
+      actions.forEach(a=>{ applyAction(a,false); broadcastACT(a); });
 
-      iName.value = name;
-      iLayer.value = String(layer);
-      iSize.value  = String(clamp(w, 40, 2500));
-      iRot.value   = String(clamp(rot, 0, 359));
-      iZoom.value  = String(clamp(zoom, 0.2, 5));
-      iFit.value   = fit;
-      iFog.value   = String(clamp(fog, 50, 2500));
-
-      fogEmitterPill.classList.toggle('active', emitter);
+      rebuildLayersPanel();
+      applyLayerVisibilityToDOM();
+      updateFogAndVisibility();
     }
 
-    function inspectorApplyProp(prop, value){
-      if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
-      const action={type:"UPDATE_PROP", id, prop, value};
-      applyAction(action,false); broadcastACT(action);
-    }
-
-    iName.addEventListener('change',()=>inspectorApplyProp("name", iName.value));
-    iLayer.addEventListener('change',()=>inspectorApplyProp("layer", clamp(Number(iLayer.value||1), 1, 50)));
-    iRot.addEventListener('input',()=>inspectorApplyProp("rotation", clamp(Number(iRot.value||0), 0, 359)));
-    iZoom.addEventListener('input',()=>inspectorApplyProp("innerZoom", clamp(Number(iZoom.value||1), 0.2, 5)));
-    iFit.addEventListener('change',()=>inspectorApplyProp("fitMode", iFit.value));
-    iFog.addEventListener('input',()=>inspectorApplyProp("visionRadius", clamp(Number(iFog.value||600), 50, 8000)));
-    iSize.addEventListener('input',()=>{
-      if (!selectedToken || !isHost) return;
-      const w = clamp(Number(iSize.value||180), 40, 2500);
-      const w0 = Number(selectedToken.dataset.sizeW||w);
-      const h0 = Number(selectedToken.dataset.sizeH||w);
-      const ratio = (w0>0) ? (h0/w0) : 1;
-      const h = clamp(Math.round(w*ratio), 40, 2500);
-      inspectorApplyProp("size",{w,h});
+    // hooks inspector (host)
+    [insLayer, insW, insH, insRot, insZoom, insFit, insVision, insFog].forEach(el=>{
+      el.addEventListener('change', ()=>applyInspectorToToken());
+      el.addEventListener('input', ()=>{
+        if (el === insZoom) applyInspectorToToken();
+      });
     });
 
-    function inspectorToggleLock(){
+    function insRotate(deg){
       if (!selectedToken || !isHost) return;
-      const next = selectedToken.dataset.locked==="true" ? "false" : "true";
-      inspectorApplyProp("locked", next);
-    }
-    function inspectorUnlock(){
-      if (!selectedToken || !isHost) return;
-      inspectorApplyProp("locked","false");
-    }
-    function inspectorToggleFogEmitter(){
-      if (!selectedToken || !isHost) return;
-      const next = (selectedToken.dataset.fogEmitter==="true") ? false : true;
-      inspectorApplyProp("fogEmitter", next);
-    }
-    function inspectorBringFront(){
-      if (!selectedToken || !isHost) return;
-      const l = clamp(Number(selectedToken.dataset.layer||1)+1, 1, 50);
-      inspectorApplyProp("layer", l);
-      rebuildLayersPanel();
-    }
-    function inspectorSendBack(){
-      if (!selectedToken || !isHost) return;
-      const l = clamp(Number(selectedToken.dataset.layer||1)-1, 1, 50);
-      inspectorApplyProp("layer", l);
-      rebuildLayersPanel();
-    }
-    function inspectorReset(){
-      if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
-      const acts=[
-        {type:"UPDATE_PROP", id, prop:"innerZoom", value:1},
-        {type:"UPDATE_PROP", id, prop:"rotation", value:0},
-        {type:"UPDATE_PROP", id, prop:"flipped", value:"false"},
-        {type:"UPDATE_PROP", id, prop:"fitMode", value:"contain"},
-      ];
-      acts.forEach(a=>{ applyAction(a,false); broadcastACT(a); });
-    }
-    function inspectorDelete(){
-      if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
-      const a={type:"REMOVE_TOKEN", id};
+      const id = selectedToken.dataset.uuid;
+      const newVal = (Number(selectedToken.dataset.rotation||0) + deg + 360) % 360;
+      const a={ type:"UPDATE_PROP", id, prop:"rotation", value:newVal };
       applyAction(a,false); broadcastACT(a);
     }
-
-    function inspectorAddToProfile(){
+    function insFlip(){
       if (!selectedToken || !isHost) return;
-      const id=selectedToken.dataset.uuid;
-      const t=state.tokens[id];
-      if (!t) return;
+      const id = selectedToken.dataset.uuid;
+      const newVal = (selectedToken.dataset.flipped==="true") ? "false" : "true";
+      const a={ type:"UPDATE_PROP", id, prop:"flipped", value:newVal };
+      applyAction(a,false); broadcastACT(a);
+    }
+    function insLock(v){
+      if (!selectedToken || !isHost) return;
+      const id = selectedToken.dataset.uuid;
+      const a={ type:"UPDATE_PROP", id, prop:"locked", value: String(!!v) };
+      applyAction(a,false); broadcastACT(a);
+    }
+    function insDelete(){
+      if (!selectedToken || !isHost) return;
+      const id = selectedToken.dataset.uuid;
+      const a={ type:"REMOVE_TOKEN", id };
+      applyAction(a,false); broadcastACT(a);
+      closeInspector();
+    }
 
-      const entry = {
-        id: generateUUID(),
-        name: (t.name && t.name.trim()) ? t.name.trim() : `${t.kind}-${id.slice(-6)}`,
-        kind: t.kind,
-        src: t.src,
-        type: t.type || "image",
-        createdAt: nowISO()
-      };
+    // ===== FOG (Player Only) =====
+    function resizeFogCanvas(){
+      fogCanvas.width = 10000;
+      fogCanvas.height = 10000;
+    }
+    resizeFogCanvas();
 
-      profile = loadProfile();
-      if (t.kind==="map"){
-        profile.maps.unshift(entry);
-      } else if (t.kind==="player"){
-        profile.players.unshift(entry);
-      } else {
-        profile.assets.unshift(entry);
+    function tokenCenterCanvas(t){
+      const x = (parseFloat(t.style.left)||0) + (parseFloat(t.style.width)||0)/2;
+      const y = (parseFloat(t.style.top)||0) + (parseFloat(t.style.height)||0)/2;
+      return {x,y};
+    }
+
+    function getVisionSources(){
+      const sources = [];
+      for (const id of Object.keys(state.tokens)){
+        const tok = state.tokens[id];
+        if (!tok) continue;
+        const vision = String(tok.vision||"off");
+        const r = Number(tok.fogRadius||0);
+        if (vision === "on" && r > 0){
+          sources.push({ id, x: (parseFloat(tok.x)||0) + (Number(tok.w)||0)/2, y: (parseFloat(tok.y)||0) + (Number(tok.h)||0)/2, r });
+        }
       }
-      saveProfileObj(profile);
-      renderProfileGrid();
-      showNotification("Salvo no Perfil!");
+      return sources;
     }
 
-    // ===== Fog toggle =====
-    function toggleFog(){
-      if (!isHost) return alert("Apenas o Host controla o Fog.");
-      const a = { type:"FOG_SET", prop:"enabled", value: !state.fog.enabled };
-      applyAction(a,false); broadcastACT(a);
-      showNotification(state.fog.enabled ? "Fog ON" : "Fog OFF");
-    }
+    // desenha overlay e decide visibilidade dos tokens para player
+    function updateFogAndVisibility(){
+      if (isHost) return;
 
-    // ===== Layers panel =====
-    function rebuildLayersPanel(){
-      if (!isHost) return;
+      // aplica layer hidden primeiro
+      document.querySelectorAll('.token').forEach(t=>{
+        const layer = Number(t.dataset.layer||2);
+        ensureLayerDefaults(layer);
+        const vis = !!layerState.visible[layer];
+        t.style.display = vis ? "" : "none";
+      });
 
-      const layers = Array.from(new Set(Object.values(state.tokens).map(t=>Number(t.layer||1)))).sort((a,b)=>a-b);
-      layersList.innerHTML="";
+      const sources = getVisionSources();
 
-      // Layer 0 - mapa
-      const row0=document.createElement('div');
-      row0.className="layer-row";
-      row0.innerHTML = `
-        <div><b>Layer 0</b> <span class="mini">(Mapa)</span></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <div class="pill active" style="pointer-events:none;opacity:.85;">Sempre visível</div>
-          <div class="pill ${state.map.locked?'active':''}" onclick="toggleMapLock()">Mapa ${state.map.locked?'Trancado':'Livre'}</div>
-        </div>
-      `;
-      layersList.appendChild(row0);
-
-      if (!layers.length){
-        const empty=document.createElement('div');
-        empty.className="mini";
-        empty.style.padding="10px 2px";
-        empty.textContent="Nenhuma layer de tokens ainda. Adicione peças/players para criar.";
-        layersList.appendChild(empty);
+      // Se não tem fonte, player vê apenas mapa (tokens invisíveis)
+      if (!sources.length){
+        document.querySelectorAll('.token').forEach(t=>{
+          t.style.opacity = 0;
+          t.style.pointerEvents = "none";
+        });
+        // fog total
+        fogCtx.clearRect(0,0,fogCanvas.width,fogCanvas.height);
+        fogCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--fog') || 'rgba(0,0,0,0.82)';
+        fogCtx.fillRect(0,0,fogCanvas.width,fogCanvas.height);
         return;
       }
 
-      for (const l of layers){
-        ensureLayerDefaults(l);
-        const row=document.createElement('div');
-        row.className="layer-row";
+      // tokens: visível se dentro de algum círculo
+      document.querySelectorAll('.token').forEach(t=>{
+        const layer = Number(t.dataset.layer||2);
+        ensureLayerDefaults(layer);
+        if (!layerState.visible[layer]){
+          t.style.opacity = 0;
+          t.style.pointerEvents = "none";
+          return;
+        }
+        const {x,y} = tokenCenterCanvas(t);
+        let inside = false;
+        for (const s of sources){
+          const dx = x - s.x;
+          const dy = y - s.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 <= (s.r*s.r)) { inside = true; break; }
+        }
+        t.style.opacity = inside ? 1 : 0;
+        // player só interage se dentro e destravado (e a lógica req/host valida)
+        t.style.pointerEvents = inside ? "auto" : "none";
+      });
 
-        const left=document.createElement('div');
-        left.innerHTML = `<b>Layer ${l}</b> <span class="mini">(tokens)</span>`;
+      // desenha fog overlay com buracos
+      fogCtx.clearRect(0,0,fogCanvas.width,fogCanvas.height);
 
-        const actions=document.createElement('div');
-        actions.style.display="flex";
-        actions.style.gap="10px";
-        actions.style.flexWrap="wrap";
+      // base
+      fogCtx.globalCompositeOperation = "source-over";
+      fogCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--fog') || 'rgba(0,0,0,0.82)';
+      fogCtx.fillRect(0,0,fogCanvas.width,fogCanvas.height);
 
-        const vis=document.createElement('div');
-        vis.className = "pill " + (layerState.visible[l] ? "active" : "");
-        vis.textContent = layerState.visible[l] ? "Visível" : "Oculta";
-        vis.onclick=()=>{
-          const a={type:"LAYER_SET", layer:l, prop:"visible", value:!layerState.visible[l]};
-          applyAction(a,false); broadcastACT(a);
-        };
+      // recorta círculos
+      fogCtx.globalCompositeOperation = "destination-out";
 
-        const lock=document.createElement('div');
-        lock.className = "pill " + (layerState.locked[l] ? "active" : "");
-        lock.textContent = layerState.locked[l] ? "Trancada" : "Livre";
-        lock.onclick=()=>{
-          const a={type:"LAYER_SET", layer:l, prop:"locked", value:!layerState.locked[l]};
-          applyAction(a,false); broadcastACT(a);
-        };
-
-        actions.appendChild(vis);
-        actions.appendChild(lock);
-
-        row.appendChild(left);
-        row.appendChild(actions);
-        layersList.appendChild(row);
+      for (const s of sources){
+        const grd = fogCtx.createRadialGradient(s.x, s.y, Math.max(0, s.r*0.72), s.x, s.y, s.r);
+        grd.addColorStop(0, "rgba(0,0,0,1)");
+        grd.addColorStop(1, "rgba(0,0,0,0)");
+        fogCtx.fillStyle = grd;
+        fogCtx.beginPath();
+        fogCtx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        fogCtx.fill();
       }
+
+      fogCtx.globalCompositeOperation = "source-over";
     }
 
-    // ===== Dice =====
+    // ===== DADOS / LOG =====
     function rollDice(faces){
       if (!isHost) return;
       const res=Math.floor(Math.random()*faces)+1;
-      const a={type:"DICE", faces, result:res};
-      applyAction(a,false); broadcastACT(a);
+      const action={ type:"DICE", faces, result:res };
+      applyAction(action,false); broadcastACT(action);
     }
     function showDiceLog(faces,res){
       const entry=document.createElement('div');
@@ -1627,7 +1562,7 @@
       setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
     }
 
-    // ===== Imports =====
+    // ===== IMPORT =====
     function isImageUrl(url){
       return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
     }
@@ -1640,418 +1575,470 @@
       if (type==="map"){
         if (!isImageUrl(url)) return alert("Mapa precisa ser imagem direta.");
         applyMapLocal(url,true);
+        addToLibrary("maps", url);
         document.getElementById(inputId).value="";
+        updateSceneSizeEstimate();
         return;
       }
 
-      if (!isImageUrl(url)) return alert("Tokens precisam ser imagens diretas.");
-      if (type==="player") hostCreateToken(url,"player");
-      else hostCreateToken(url,"asset");
+      if (!isImageUrl(url)) return alert("Tokens/Assets precisam ser imagens diretas.");
 
+      if (type==="player"){
+        hostCreateToken(url,"image","player");
+        addToLibrary("players", url);
+      } else if (type==="asset"){
+        hostCreateToken(url,"image","asset");
+        addToLibrary("assets", url);
+      }
       document.getElementById(inputId).value="";
+      rebuildLayersPanel();
+      applyLayerVisibilityToDOM();
+      updateSceneSizeEstimate();
     }
 
     function importAsset(event, type){
       if (!isHost) return alert("Apenas o Host importa.");
       const file=event.target.files?.[0];
       if (!file) return;
+
       const reader=new FileReader();
       reader.onload=(e)=>{
         const dataUrl=e.target.result;
-        if (type==="map") applyMapLocal(dataUrl,true);
-        else if (type==="player") hostCreateToken(dataUrl,"player");
-        else hostCreateToken(dataUrl,"asset");
+
+        if (type==="map"){
+          applyMapLocal(dataUrl,true);
+          addToLibrary("maps", dataUrl, "mapa-local");
+        } else if (type==="player"){
+          hostCreateToken(dataUrl,"image","player");
+          addToLibrary("players", dataUrl, "player-local");
+        } else if (type==="asset"){
+          hostCreateToken(dataUrl,"image","asset");
+          addToLibrary("assets", dataUrl, "asset-local");
+        }
+
+        rebuildLayersPanel();
+        applyLayerVisibilityToDOM();
+        updateSceneSizeEstimate();
       };
       reader.readAsDataURL(file);
     }
 
-    // ===== Profile UI =====
-    function renderProfileGrid(){
-      const grid=document.getElementById('profile-grid');
-      grid.innerHTML="";
-
-      profile = loadProfile();
-      const list = profile[profileTab] || [];
-
-      if (!list.length){
-        const msg=document.createElement('div');
-        msg.className="mini";
-        msg.style.gridColumn="1/-1";
-        msg.style.padding="8px 2px";
-        msg.textContent="Vazio. Salve itens no perfil pelo Inspector.";
-        grid.appendChild(msg);
-        return;
-      }
-
-      list.slice(0,60).forEach((item,idx)=>{
-        const card=document.createElement('div');
-        card.className="lib-card";
-        const img=document.createElement('img');
-        img.className="lib-thumb";
-        img.src=item.src;
-        const meta=document.createElement('div');
-        meta.className="lib-meta";
-        meta.innerHTML = `<b>${item.name||"(sem nome)"}</b><span>${item.kind}</span>`;
-
-        card.appendChild(img);
-        card.appendChild(meta);
-
-        card.onclick=()=>{
-          if (!isHost) return;
-
-          if (profileTab==="maps"){
-            // aplicar como mapa
-            applyMapLocal(item.src,true);
-            showNotification("Mapa aplicado!");
-          } else {
-            hostCreateToken(item.src, profileTab==="players" ? "player" : "asset");
-            showNotification("Item colocado na mesa!");
-          }
-        };
-
-        card.oncontextmenu=(ev)=>{
-          ev.preventDefault();
-          if (!isHost) return;
-          if (!confirm(`Remover "${item.name}" do perfil?`)) return;
-
-          profile = loadProfile();
-          profile[profileTab].splice(idx,1);
-          saveProfileObj(profile);
-          renderProfileGrid();
-        };
-
-        grid.appendChild(card);
-      });
+    // ===== BIBLIOTECA =====
+    function toggleLibrary(){
+      if (!isHost) return alert("Apenas o Host usa Biblioteca/Perfil.");
+      libraryPanel.classList.toggle('show');
+      renderLibrary();
     }
 
-    function exportProfile(){
+    function setLibraryTab(tab){
+      libraryTab=tab;
+      document.getElementById('tab-maps').classList.toggle('active', tab==='maps');
+      document.getElementById('tab-players').classList.toggle('active', tab==='players');
+      document.getElementById('tab-assets').classList.toggle('active', tab==='assets');
+      renderLibrary();
+    }
+
+    function normalizeNameFromSrc(src, fallback){
+      if (!src) return fallback || "asset";
+      if (src.startsWith("data:image")) return fallback || "local";
+      try{
+        const u=new URL(src);
+        const last=u.pathname.split("/").pop() || fallback || "img";
+        return decodeURIComponent(last).slice(0,40);
+      }catch{
+        return fallback || "asset";
+      }
+    }
+
+    function addToLibrary(kind, src, name=null){
       if (!isHost) return;
-      profile = loadProfile();
-      const blob=new Blob([JSON.stringify(profile,null,2)], {type:"application/json"});
+      if (!src) return;
+      const list = library[kind];
+      if (!Array.isArray(list)) return;
+      if (list.some(x=>x.src===src)) return;
+
+      list.unshift({
+        id: generateUUID(),
+        name: name || normalizeNameFromSrc(src, kind==="maps"?"mapa":kind),
+        src
+      });
+      renderLibrary();
+    }
+
+    function renderLibrary(){
+      if (!isHost) return;
+      const term=(librarySearch.value||"").toLowerCase().trim();
+      const list = library[libraryTab] || [];
+      const filtered = term ? list.filter(x=>(x.name||"").toLowerCase().includes(term)) : list;
+
+      libraryGrid.innerHTML="";
+      filtered.forEach(item=>{
+        const card=document.createElement('div');
+        card.className="asset-card";
+
+        const thumb=document.createElement('div');
+        thumb.className="asset-thumb";
+        const img=document.createElement('img');
+        img.src=item.src;
+        img.alt=item.name||"asset";
+        thumb.appendChild(img);
+
+        const title=document.createElement('div');
+        title.style.fontSize="10px";
+        title.style.opacity=".85";
+        title.style.whiteSpace="nowrap";
+        title.style.overflow="hidden";
+        title.style.textOverflow="ellipsis";
+        title.textContent=item.name||"asset";
+
+        const actions=document.createElement('div');
+        actions.className="asset-actions";
+
+        const use=document.createElement('button');
+        use.textContent = (libraryTab==="maps") ? "Usar" : "Add";
+        use.onclick=()=>{
+          if (libraryTab==="maps"){
+            applyMapLocal(item.src,true);
+          } else if (libraryTab==="players"){
+            hostCreateToken(item.src,"image","player");
+          } else if (libraryTab==="assets"){
+            hostCreateToken(item.src,"image","asset");
+          }
+          rebuildLayersPanel();
+          applyLayerVisibilityToDOM();
+          updateSceneSizeEstimate();
+        };
+
+        const del=document.createElement('button');
+        del.textContent="Remover";
+        del.onclick=()=>removeFromLibrary(item.id);
+
+        actions.appendChild(use);
+        actions.appendChild(del);
+
+        card.appendChild(thumb);
+        card.appendChild(title);
+        card.appendChild(actions);
+
+        libraryGrid.appendChild(card);
+      });
+
+      const count=(library[libraryTab]||[]).length;
+      libraryCount.textContent = `${count} itens`;
+    }
+
+    function removeFromLibrary(id){
+      if (!isHost) return;
+      for (const k of ["maps","players","assets"]){
+        library[k] = (library[k]||[]).filter(x=>x.id!==id);
+      }
+      renderLibrary();
+    }
+
+    function clearLibrary(){
+      if (!isHost) return;
+      if (!confirm("Limpar toda a Biblioteca?")) return;
+      library.maps=[]; library.players=[]; library.assets=[];
+      renderLibrary();
+    }
+
+    function saveProfileToFile(){
+      if (!isHost) return;
+      const payload={ version:2, savedAt:new Date().toISOString(), library };
+      const json=JSON.stringify(payload);
+      const blob=new Blob([json],{type:"application/json"});
+
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob);
-      a.download="perfil.json";
+      a.download=`perfil-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+      showNotification("Perfil salvo!");
     }
-    function importProfileFile(event){
+
+    function loadProfileFromFile(event){
       if (!isHost) return;
       const file=event.target.files?.[0];
-      if(!file) return;
-      const reader=new FileReader();
-      reader.onload=()=>{
+      if (!file) return;
+      const r=new FileReader();
+      r.onload=()=>{
         try{
-          const obj=JSON.parse(reader.result);
-          if(!obj || typeof obj!=="object") throw new Error("json inválido");
-          localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(obj));
-          profile = loadProfile();
-          renderProfileGrid();
-          showNotification("Perfil importado!");
-        }catch(e){
-          alert("JSON inválido.");
+          const payload=JSON.parse(String(r.result||"{}"));
+          if (!payload?.library) throw 0;
+          library.maps=Array.isArray(payload.library.maps)?payload.library.maps:[];
+          library.players=Array.isArray(payload.library.players)?payload.library.players:[];
+          library.assets=Array.isArray(payload.library.assets)?payload.library.assets:[];
+          showNotification("Perfil carregado!");
+          renderLibrary();
+        }catch{
+          alert("perfil.json inválido.");
         }
+        event.target.value="";
       };
-      reader.readAsText(file);
-      event.target.value="";
+      r.readAsText(file);
     }
 
-    // ===== Scenes: capture/apply =====
-    function captureCurrentScene(name){
-      // tokens from state are already normalized; ensure latest from DOM
-      // (host actions keep state sync, but ensure sizes/pos)
-      const tokens = {};
-      document.querySelectorAll('.token').forEach(el=>{
-        const id=el.dataset.uuid;
-        const t=state.tokens[id];
-        if(!t) return;
-
-        tokens[id] = {
-          ...t,
-          x: el.style.left,
-          y: el.style.top,
-          w: Number(el.dataset.sizeW || parseInt(el.style.width)||t.w),
-          h: Number(el.dataset.sizeH || parseInt(el.style.height)||t.h),
-          rotation: Number(el.dataset.rotation||t.rotation||0),
-          flipped: String(el.dataset.flipped||t.flipped||"false"),
-          innerZoom: Number(el.dataset.innerZoom||t.innerZoom||1),
-          locked: String(el.dataset.locked||t.locked||"false"),
-          fitMode: String(el.dataset.fitMode||t.fitMode||"contain"),
-          fogEmitter: (String(el.dataset.fogEmitter||t.fogEmitter) === "true"),
-          visionRadius: Number(el.dataset.visionRadius||t.visionRadius||600),
-          layer: Number(el.dataset.layer||t.layer||1),
-          name: String(el.dataset.name||t.name||""),
-        };
-      });
-
-      const scene = {
-        version: 1,
-        name: name || "Sem nome",
-        savedAt: nowISO(),
-        map: {...state.map},
-        fog: {...state.fog},
-        layerState: JSON.parse(JSON.stringify(layerState)),
-        tokens
-      };
-      return scene;
+    // ===== CENAS (SAVE/LOAD) =====
+    function openScenePanel(){
+      if (!isHost) return alert("Apenas o Host.");
+      scenePanel.classList.toggle('show');
+      updateQualityLabel();
+      updateSceneSizeEstimate();
     }
 
-    function applyScene(scene, emitNetwork=true){
+    function byteLengthOfString(str){ return new Blob([str]).size; }
+    function prettyBytes(bytes){
+      const units=["B","KB","MB","GB"];
+      let i=0,num=bytes;
+      while(num>=1024 && i<units.length-1){ num/=1024; i++; }
+      return `${num.toFixed(i===0?0:2)} ${units[i]}`;
+    }
+
+    function updateQualityLabel(){
+      const q=document.getElementById('quality');
+      const label=document.getElementById('quality-label');
+      if (q && label) label.textContent=`Q ${Number(q.value).toFixed(2)}`;
+    }
+
+    function estimatePayloadSizeBytes(payload){
+      try{ return byteLengthOfString(JSON.stringify(payload)); }
+      catch{ return 0; }
+    }
+
+    function updateSceneSizeEstimate(){
       if (!isHost) return;
+      const payload={
+        version:5,
+        savedAt:new Date().toISOString(),
+        map: state.map,
+        tokens: state.tokens,
+        layerState
+      };
+      const bytes=estimatePayloadSizeBytes(payload);
+      document.getElementById('scene-size').textContent = `~ ${prettyBytes(bytes)}`;
+    }
 
-      // clear DOM tokens + map
-      document.querySelectorAll('.token').forEach(t=>t.remove());
-      mapContainer.innerHTML="";
-      diceLogEntries.querySelectorAll('.dice-entry').forEach(l=>l.remove());
-      selectedToken=null;
+    function blobToDataURL(blob){
+      return new Promise((resolve,reject)=>{
+        const r=new FileReader();
+        r.onload=()=>resolve(r.result);
+        r.onerror=reject;
+        r.readAsDataURL(blob);
+      });
+    }
 
-      // apply layerState
-      layerState.visible = scene.layerState?.visible || {};
-      layerState.locked  = scene.layerState?.locked  || {};
+    async function tryFetchAsBlob(url){
+      try{
+        const resp=await fetch(url,{mode:"cors"});
+        if(!resp.ok) throw 0;
+        return await resp.blob();
+      }catch{ return null; }
+    }
 
-      // apply state
-      state.map = scene.map || {src:null,locked:false,x:0,y:0};
-      state.fog = scene.fog || {enabled:false,darkness:0.9,softness:0.2};
-      state.tokens = {};
+    async function tryFetchAsDataURL(url){
+      const blob=await tryFetchAsBlob(url);
+      if(!blob) return null;
+      if(!blob.type.startsWith("image/")) return null;
+      return await blobToDataURL(blob);
+    }
 
-      // map
-      if (state.map.src) applyMapLocal(state.map.src,false);
-      setMapLockLocal(!!state.map.locked,false);
-      setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
+    async function compressBlobToWebP(blob, maxDim, quality){
+      try{
+        const bmp=await createImageBitmap(blob);
+        const w=bmp.width,h=bmp.height;
+        const s=Math.min(1, maxDim/Math.max(w,h));
+        const nw=Math.max(1,Math.round(w*s));
+        const nh=Math.max(1,Math.round(h*s));
+        const c=document.createElement('canvas');
+        c.width=nw; c.height=nh;
+        const ctx=c.getContext('2d',{alpha:true});
+        ctx.drawImage(bmp,0,0,nw,nh);
+        const outBlob=await new Promise(res=>c.toBlob(res,"image/webp",quality));
+        if(!outBlob) return null;
+        return await blobToDataURL(outBlob);
+      }catch{ return null; }
+    }
 
-      // tokens
-      const tokens = scene.tokens || {};
-      for (const id in tokens){
-        const t = tokens[id];
-        ensureLayerDefaults(Number(t.layer||1));
-        addTokenLocal(t.src, t.type||"image", id, t);
-        state.tokens[id]=normalizeTokenProps(id, t.src, t.type||"image", t);
+    async function compressDataURLToWebP(dataUrl, maxDim, quality){
+      try{
+        const resp=await fetch(dataUrl);
+        const blob=await resp.blob();
+        if(!blob.type.startsWith("image/")) return null;
+        return await compressBlobToWebP(blob,maxDim,quality);
+      }catch{ return null; }
+    }
+
+    async function compressImageSrcIfPossible(src, maxDim, quality){
+      if (typeof src==="string" && src.startsWith("http")){
+        const blob=await tryFetchAsBlob(src);
+        if(!blob || !blob.type.startsWith("image/")) return src;
+        const webp=await compressBlobToWebP(blob,maxDim,quality);
+        return webp || src;
+      }
+      if (typeof src==="string" && src.startsWith("data:image")){
+        const webp=await compressDataURLToWebP(src,maxDim,quality);
+        return webp || src;
+      }
+      return src;
+    }
+
+    async function buildScenePayloadSelfContained(){
+      if (!isHost) return null;
+
+      const embedRemote = !!document.getElementById('embed-remote')?.checked;
+      const compress = !!document.getElementById('compress-images')?.checked;
+      const maxDim = parseInt(document.getElementById('max-dim')?.value || "2048", 10);
+      const quality = parseFloat(document.getElementById('quality')?.value || "0.75");
+
+      const payload = {
+        version:5,
+        savedAt:new Date().toISOString(),
+        map: JSON.parse(JSON.stringify(state.map)),
+        tokens: JSON.parse(JSON.stringify(state.tokens)),
+        layerState: JSON.parse(JSON.stringify(layerState))
+      };
+
+      if (payload.map?.src){
+        if (embedRemote && payload.map.src.startsWith("http")){
+          const du = await tryFetchAsDataURL(payload.map.src);
+          if (du) payload.map.src = du;
+        }
+        if (compress && (payload.map.src.startsWith("http") || payload.map.src.startsWith("data:image"))){
+          payload.map.src = await compressImageSrcIfPossible(payload.map.src, maxDim, quality);
+        }
       }
 
-      btnFog.classList.toggle('active', !!state.fog.enabled);
+      for (const id of Object.keys(payload.tokens)){
+        const t = payload.tokens[id];
+        if (!t?.src) continue;
+
+        if (embedRemote && typeof t.src==="string" && t.src.startsWith("http")){
+          const du = await tryFetchAsDataURL(t.src);
+          if (du) t.src = du;
+        }
+        if (compress && t.type==="image"){
+          t.src = await compressImageSrcIfPossible(t.src, maxDim, quality);
+        }
+      }
+
+      return payload;
+    }
+
+    async function saveSceneToFile(){
+      if (!isHost) return alert("Apenas o Host.");
+      showNotification("Salvando...");
+      const payload = await buildScenePayloadSelfContained();
+      if (!payload) return;
+
+      const json=JSON.stringify(payload);
+      const blob=new Blob([json],{type:"application/json"});
+
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`cena-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+
+      showNotification(`Cena salva (${prettyBytes(blob.size)})!`);
+      updateSceneSizeEstimate();
+    }
+
+    function hostLoadScenePayload(payload){
+      if (!isHost) return;
+      if (!payload || typeof payload!=="object") return alert("Cena inválida.");
+
+      const clear = { type:"CLEAR" };
+      applyAction(clear,false); broadcastACT(clear);
+
+      if (payload.layerState){
+        layerState.visible = payload.layerState.visible || {};
+        layerState.locked = payload.layerState.locked || {};
+      }
+
+      const map = payload.map || {src:null,locked:false,x:0,y:0};
+      if (map.src){
+        const a = { type:"MAP_UPDATE", src: map.src };
+        applyAction(a,false); broadcastACT(a);
+      }
+      const lockA = { type:"MAP_LOCK", locked: !!map.locked };
+      applyAction(lockA,false); broadcastACT(lockA);
+
+      const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
+      applyAction(moveA,false); broadcastACT(moveA);
+
+      const tokens = payload.tokens || {};
+      for (const id of Object.keys(tokens)){
+        const t = tokens[id];
+        if (!t?.src || !t.type) continue;
+        ensureLayerDefaults(Number(t.layer||2));
+        const create = {
+          type:"CREATE_TOKEN",
+          id,
+          src: t.src,
+          contentType: t.type,
+          props: {
+            kind: t.kind || "asset",
+            layer: Number(t.layer||2),
+            x: t.x, y: t.y, w: t.w, h: t.h,
+            rotation: t.rotation, flipped: t.flipped,
+            innerZoom: t.innerZoom, locked: t.locked,
+            fitMode: t.fitMode || "contain",
+
+            // fog
+            vision: t.vision || "off",
+            fogRadius: Number(t.fogRadius||0)
+          }
+        };
+        applyAction(create,false); broadcastACT(create);
+      }
+
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
-      requestFogRedraw();
-      syncInspectorFromSelection();
-      renderSceneList();
-
-      // broadcast SYNC to clients
-      if (emitNetwork){
-        broadcastSYNC();
-      }
-      showNotification(`Cena carregada: ${scene.name}`);
+      showNotification("Cena carregada!");
+      updateSceneSizeEstimate();
     }
 
-    // ===== Scenes UI: save/load =====
-    function renderSceneList(){
-      if (!isHost) return;
-      scenesStore = loadScenesStore();
-      const listEl=document.getElementById('scene-list');
-      listEl.innerHTML="";
-
-      if (!scenesStore.order.length){
-        const msg=document.createElement('div');
-        msg.className="mini";
-        msg.style.padding="6px 2px";
-        msg.textContent="Nenhuma cena salva ainda.";
-        listEl.appendChild(msg);
-        return;
-      }
-
-      scenesStore.order.forEach(name=>{
-        const sc=scenesStore.scenes[name];
-        if (!sc) return;
-
-        const row=document.createElement('div');
-        row.className="scene-row";
-        const left=document.createElement('div');
-        left.innerHTML = `<b>${name}</b><span>${(sc.savedAt||"").replace("T"," ").slice(0,19)}</span>`;
-
-        const right=document.createElement('div');
-        right.style.display="flex";
-        right.style.gap="8px";
-        right.style.flexWrap="wrap";
-
-        const btnLoad=document.createElement('div');
-        btnLoad.className="btn";
-        btnLoad.textContent="LOAD";
-        btnLoad.onclick=()=>{
-          if (!confirm(`Carregar cena "${name}"? (vai substituir a mesa atual)`)) return;
-          applyScene(scenesStore.scenes[name], true);
-        };
-
-        const btnExp=document.createElement('div');
-        btnExp.className="btn";
-        btnExp.textContent="EXPORT";
-        btnExp.onclick=()=>{
-          exportScene(name);
-        };
-
-        const btnDel=document.createElement('div');
-        btnDel.className="btn";
-        btnDel.textContent="DEL";
-        btnDel.onclick=()=>{
-          if (!confirm(`Apagar cena "${name}" do navegador?`)) return;
-          delete scenesStore.scenes[name];
-          scenesStore.order = scenesStore.order.filter(n=>n!==name);
-          saveScenesStore(scenesStore);
-          renderSceneList();
-          showNotification("Cena removida.");
-        };
-
-        right.appendChild(btnLoad);
-        right.appendChild(btnExp);
-        right.appendChild(btnDel);
-
-        row.appendChild(left);
-        row.appendChild(right);
-        listEl.appendChild(row);
-      });
-    }
-
-    function saveScene(){
-      if (!isHost) return;
-      const name = (document.getElementById('scene-name').value||"").trim();
-      if (!name) return alert("Dê um nome para a cena.");
-
-      const scene = captureCurrentScene(name);
-
-      scenesStore = loadScenesStore();
-      scenesStore.scenes[name] = scene;
-      if (!scenesStore.order.includes(name)) scenesStore.order.unshift(name);
-      saveScenesStore(scenesStore);
-      renderSceneList();
-      showNotification("Cena salva!");
-    }
-
-    function saveSceneAsNew(){
-      if (!isHost) return;
-      let name = (document.getElementById('scene-name').value||"").trim();
-      if (!name) name="Cena";
-      // garante nome único
-      scenesStore=loadScenesStore();
-      let base=name, i=1;
-      while (scenesStore.scenes[name]){ name = `${base} (${i++})`; }
-      document.getElementById('scene-name').value=name;
-
-      const scene = captureCurrentScene(name);
-      scenesStore.scenes[name] = scene;
-      scenesStore.order.unshift(name);
-      saveScenesStore(scenesStore);
-      renderSceneList();
-      showNotification("Cena salva como nova!");
-    }
-
-    function exportScene(name){
-      if (!isHost) return;
-      scenesStore=loadScenesStore();
-      const scene=scenesStore.scenes[name];
-      if(!scene) return;
-      const blob=new Blob([JSON.stringify(scene,null,2)], {type:"application/json"});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download=`scene_${sanitizeFileName(name)}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    function exportAll(){
-      if (!isHost) return;
-      scenesStore=loadScenesStore();
-      profile=loadProfile();
-      const payload={
-        version: 1,
-        exportedAt: nowISO(),
-        scenesStore,
-        profile
-      };
-      const blob=new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download="tabletop_backup.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    function importAllFile(event){
+    function loadSceneFromFile(event){
       if (!isHost) return;
       const file=event.target.files?.[0];
-      if(!file) return;
-      const reader=new FileReader();
-      reader.onload=()=>{
+      if (!file) return;
+      const r=new FileReader();
+      r.onload=()=>{
         try{
-          const obj=JSON.parse(reader.result);
-          if(!obj || typeof obj!=="object") throw new Error("inválido");
-          if (obj.scenesStore){
-            localStorage.setItem(LS_SCENES_KEY, JSON.stringify(obj.scenesStore));
-          }
-          if (obj.profile){
-            localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(obj.profile));
-          }
-          scenesStore=loadScenesStore();
-          profile=loadProfile();
-          renderSceneList();
-          renderProfileGrid();
-          showNotification("Importado!");
-        }catch(e){
-          alert("JSON inválido.");
-        }
+          const payload=JSON.parse(String(r.result||"{}"));
+          hostLoadScenePayload(payload);
+        }catch{ alert("JSON inválido."); }
+        event.target.value="";
       };
-      reader.readAsText(file);
-      event.target.value="";
+      r.readAsText(file);
     }
 
-    function sanitizeFileName(name){
-      return String(name).replace(/[\\/:*?"<>|]+/g,'_').slice(0,80);
-    }
-
-    // ===== Host-only clear/unlock =====
-    function clearTable(){
+    // ===== CLEAR / UNLOCK =====
+    function clearTable(emit=true){
       if (!isHost) return;
-      if (!confirm("Deseja limpar todos os tokens e o mapa?")) return;
-      const a={type:"CLEAR"};
-      applyAction(a,false); broadcastACT(a);
+      if (emit && !confirm("Deseja limpar todos os tokens e o mapa?")) return;
+      const action={ type:"CLEAR" };
+      applyAction(action,false); broadcastACT(action);
+      updateSceneSizeEstimate();
+      closeInspector();
     }
 
     function unlockEverything(){
       if (!isHost) return;
-      for (const id of Object.keys(state.tokens)){
-        const a={type:"UPDATE_PROP", id, prop:"locked", value:"false"};
-        applyAction(a,false); broadcastACT(a);
-      }
-      for (const l of Object.keys(layerState.locked)){
-        const a={type:"LAYER_SET", layer:Number(l), prop:"locked", value:false};
-        applyAction(a,false); broadcastACT(a);
-      }
+      document.querySelectorAll('.token.locked').forEach(t=>{
+        const id=t.dataset.uuid;
+        const action={ type:"UPDATE_PROP", id, prop:"locked", value:"false" };
+        applyAction(action,false); broadcastACT(action);
+      });
       if (state.map.locked) setMapLockLocal(false,true);
-      showNotification("Tudo destrancado!");
+      updateSceneSizeEstimate();
     }
 
-    // ===== Click outside: deselect =====
-    viewport.addEventListener('mousedown',(e)=>{
-      if(e.target===viewport || e.target===canvas || e.target===gridLayer){
-        if(selectedToken) selectedToken.classList.remove('selected');
-        selectedToken=null;
-        syncInspectorFromSelection();
-      }
-    });
-
-    // ===== Keyboard shortcuts =====
-    window.addEventListener('keydown',(e)=>{
-      if (!selectedToken) return;
-      if (selectedToken.dataset.locked==="true") return;
-      const layer = Number(selectedToken.dataset.layer||1);
-      if (layerState.locked[layer]) return;
-
-      if (e.key==='Delete'){
-        if (!isHost) return;
-        const id=selectedToken.dataset.uuid;
-        const a={type:"REMOVE_TOKEN", id};
-        applyAction(a,false); broadcastACT(a);
-        selectedToken=null;
-      }
-    });
-
-    // ===== Network protocol =====
+    // ===== PROTOCOLO REDE (Host autoritativo) =====
     function sendREQ(action){
       if (isHost){
         applyHostAuthorizedAction(action,{sender:myId});
@@ -2061,16 +2048,13 @@
         hostConnection.send({kind:"REQ", sender:myId, action});
       }
     }
+
     function broadcastACT(action, meta={}){
       if (!isHost) return;
       const msg={kind:"ACT", sender:myId, action, meta};
-      for (const c of connections){ if (c.open) c.send(msg); }
+      connections.forEach(c=>{ if(c.open) c.send(msg); });
     }
-    function broadcastSYNC(){
-      if (!isHost) return;
-      const msg={kind:"SYNC", sender:myId, state, layerState};
-      for (const c of connections){ if (c.open) c.send(msg); }
-    }
+
     function sendSYNC(conn){
       if (!isHost) return;
       conn.send({kind:"SYNC", sender:myId, state, layerState});
@@ -2094,40 +2078,23 @@
       }
     }
 
-    // Player validation: allow move + limited update props on unlocked tokens/layers
+    // ===== VALIDAÇÃO (player) =====
+    // Player: SOMENTE MOVE tokens destravados e layer visível/livre
     function validateClientAction(action){
       if (!action?.type) return {ok:false,reason:"Ação inválida"};
-      const allowed = new Set(["MOVE","UPDATE_PROP"]);
-      if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
+      if (action.type !== "MOVE") return {ok:false,reason:"Player só pode mover"};
 
       const id=action.id;
       if (!id || !state.tokens[id]) return {ok:false,reason:"Token inexistente"};
-      const tok=state.tokens[id];
 
-      const layer=Number(tok.layer||1);
+      const tok=state.tokens[id];
+      const layer = Number(tok.layer||2);
       ensureLayerDefaults(layer);
+
       if (!layerState.visible[layer]) return {ok:false,reason:"Layer oculta"};
       if (layerState.locked[layer]) return {ok:false,reason:"Layer trancada"};
       if (String(tok.locked)==="true") return {ok:false,reason:"Token travado"};
 
-      if (action.type==="UPDATE_PROP"){
-        // Player NÃO altera fogEmitter, visionRadius, layer, locked, name etc.
-        const allowedProps = new Set(["rotation","flipped","innerZoom","size","fitMode"]);
-        if (!allowedProps.has(action.prop)) return {ok:false,reason:"Prop não permitida"};
-
-        if (action.prop==="innerZoom"){
-          const z=Number(action.value);
-          if (!Number.isFinite(z) || z<.2 || z>5) return {ok:false,reason:"Zoom inválido"};
-        }
-        if (action.prop==="size"){
-          const w=Number(action.value?.w), h=Number(action.value?.h);
-          if(!Number.isFinite(w)||!Number.isFinite(h)) return {ok:false,reason:"Size inválido"};
-          if(w<40||w>2500||h<40||h>2500) return {ok:false,reason:"Size fora limite"};
-        }
-        if (action.prop==="fitMode"){
-          if(!["contain","cover"].includes(String(action.value))) return {ok:false,reason:"fit inválido"};
-        }
-      }
       return {ok:true};
     }
 
@@ -2135,38 +2102,32 @@
       const fromClient = sender && sender !== myId;
       if (fromClient){
         const v=validateClientAction(action);
-        if (!v.ok){
-          console.warn("REQ negada:", v.reason, action);
-          return;
-        }
+        if (!v.ok){ console.warn("REQ negada:", v.reason, action); return; }
       }
       applyAction(action,false);
       broadcastACT(action,{approvedBy:myId, originalSender:sender});
     }
 
-    // ===== Apply actions =====
-    function applyAction(action){
+    // ===== APPLY ACTION =====
+    function applyAction(action, fromNetwork){
       switch(action.type){
         case "CLEAR":{
           document.querySelectorAll('.token').forEach(t=>t.remove());
           mapContainer.innerHTML="";
-          diceLogEntries.querySelectorAll('.dice-entry').forEach(l => l.remove());
+          document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
           selectedToken=null;
           stopMapInertia();
+          mapDragging=false;
 
           state.map={src:null,locked:false,x:0,y:0};
           state.tokens={};
-          state.fog.enabled=false;
 
           setMapLockLocal(false,false);
           setMapOffset(0,0);
 
-          btnFog.classList.remove('active');
-
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          requestFogRedraw();
-          syncInspectorFromSelection();
+          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2175,12 +2136,15 @@
           applyMapLocal(action.src,false);
           break;
         }
+
         case "MAP_LOCK":{
           setMapLockLocal(!!action.locked,false);
           break;
         }
+
         case "MAP_MOVE":{
-          setMapOffset(Number(action.x||0), Number(action.y||0));
+          const x=Number(action.x||0), y=Number(action.y||0);
+          setMapOffset(x,y);
           break;
         }
 
@@ -2188,49 +2152,50 @@
           const {id, src, contentType, props} = action;
           addTokenLocal(src, contentType, id, props);
           state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
-          ensureLayerDefaults(Number(props?.layer ?? 1));
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          requestFogRedraw();
+          if (!isHost) updateFogAndVisibility();
           break;
         }
 
         case "REMOVE_TOKEN":{
-          removeTokenLocal(action.id);
-          delete state.tokens[action.id];
+          const {id}=action;
+          removeTokenLocal(id);
+          delete state.tokens[id];
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          requestFogRedraw();
+          if (!isHost) updateFogAndVisibility();
           break;
         }
 
         case "MOVE":{
-          moveTokenDOM(action.id, action.x, action.y);
-          if (state.tokens[action.id]){
-            state.tokens[action.id].x = action.x;
-            state.tokens[action.id].y = action.y;
-          }
+          const {id,x,y}=action;
+          moveTokenDOM(id,x,y);
+          if (state.tokens[id]){ state.tokens[id].x=x; state.tokens[id].y=y; }
+          if (!isHost) updateFogAndVisibility();
           break;
         }
 
         case "UPDATE_PROP":{
-          updateTokenPropDOM(action.id, action.prop, action.value);
-          if (state.tokens[action.id]){
-            const t=state.tokens[action.id];
-            if (action.prop==="name") t.name=String(action.value||"");
-            if (action.prop==="locked") t.locked=String(action.value);
-            if (action.prop==="innerZoom") t.innerZoom=action.value;
-            if (action.prop==="rotation") t.rotation=action.value;
-            if (action.prop==="flipped") t.flipped=action.value;
-            if (action.prop==="fitMode") t.fitMode=action.value;
-            if (action.prop==="size"){ t.w=action.value.w; t.h=action.value.h; }
-            if (action.prop==="layer"){ t.layer=Number(action.value); ensureLayerDefaults(Number(action.value)); }
-            if (action.prop==="fogEmitter"){ t.fogEmitter=!!action.value; }
-            if (action.prop==="visionRadius"){ t.visionRadius=Number(action.value); }
+          const {id,prop,value}=action;
+          updateTokenPropDOM(id,prop,value);
+          if (state.tokens[id]){
+            if (prop==="locked") state.tokens[id].locked=String(value);
+            if (prop==="innerZoom") state.tokens[id].innerZoom=value;
+            if (prop==="rotation") state.tokens[id].rotation=value;
+            if (prop==="flipped") state.tokens[id].flipped=value;
+            if (prop==="fitMode") state.tokens[id].fitMode=value;
+            if (prop==="size"){ state.tokens[id].w=value.w; state.tokens[id].h=value.h; }
+            if (prop==="layer"){
+              state.tokens[id].layer=Number(value);
+              ensureLayerDefaults(Number(value));
+            }
+            if (prop==="vision") state.tokens[id].vision=String(value);
+            if (prop==="fogRadius") state.tokens[id].fogRadius=Number(value||0);
           }
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
-          requestFogRedraw();
+          if (!isHost) updateFogAndVisibility();
           break;
         }
 
@@ -2246,67 +2211,67 @@
           if (action.prop==="locked") layerState.locked[l]=!!action.value;
           applyLayerVisibilityToDOM();
           rebuildLayersPanel();
-          break;
-        }
-
-        case "FOG_SET":{
-          if (action.prop==="enabled"){
-            state.fog.enabled = !!action.value;
-            btnFog.classList.toggle('active', state.fog.enabled);
-          }
-          if (action.prop==="darkness"){
-            state.fog.darkness = clamp(Number(action.value), 0.1, 0.98);
-          }
-          if (action.prop==="softness"){
-            state.fog.softness = clamp(Number(action.value), 0.02, 0.6);
-          }
-          requestFogRedraw();
+          if (!isHost) updateFogAndVisibility();
           break;
         }
       }
+      if (isHost) updateSceneSizeEstimate();
     }
 
     function applyFullSync(s, ls){
-      // clear DOM
       document.querySelectorAll('.token').forEach(t=>t.remove());
       mapContainer.innerHTML="";
-      diceLogEntries.querySelectorAll('.dice-entry').forEach(l=>l.remove());
+      document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
       selectedToken=null;
       stopMapInertia();
 
-      // layerState
       layerState.visible = ls?.visible || {};
-      layerState.locked  = ls?.locked  || {};
+      layerState.locked = ls?.locked || {};
 
-      // state
-      state.map = JSON.parse(JSON.stringify(s?.map || {src:null,locked:false,x:0,y:0}));
-      state.fog = JSON.parse(JSON.stringify(s?.fog || {enabled:false,darkness:0.9,softness:0.2}));
+      if (s?.map){
+        state.map = JSON.parse(JSON.stringify(s.map));
+        if (state.map.src) applyMapLocal(state.map.src,false);
+        setMapLockLocal(!!state.map.locked,false);
+        setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
+      }
+
       state.tokens = {};
-
-      if (state.map.src) applyMapLocal(state.map.src,false);
-      setMapLockLocal(!!state.map.locked,false);
-      setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
-
       const tokens = s?.tokens || {};
       for (const id of Object.keys(tokens)){
         const t=tokens[id];
-        ensureLayerDefaults(Number(t.layer||1));
-        addTokenLocal(t.src, t.type||"image", id, t);
-        state.tokens[id]=normalizeTokenProps(id,t.src,t.type||"image",t);
+        ensureLayerDefaults(Number(t.layer||2));
+        addTokenLocal(t.src, t.type, id, t);
+        state.tokens[id]=JSON.parse(JSON.stringify(t));
       }
-
-      btnFog.classList.toggle('active', !!state.fog.enabled);
 
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
-      syncInspectorFromSelection();
-      requestFogRedraw();
+      updateSceneSizeEstimate();
+      if (!isHost) updateFogAndVisibility();
     }
 
-    // ===== Context menu off =====
-    window.addEventListener('contextmenu',(e)=>e.preventDefault());
+    // ===== Keyboard =====
+    window.addEventListener('keydown',(e)=>{
+      if (!selectedToken) return;
+      if (!isHost) return; // só host gira/flip/delete pelo teclado
 
-    // ===== Network init =====
+      if (e.key.toLowerCase()==='f'){
+        insFlip();
+      }
+      if (e.key==='Delete'){
+        insDelete();
+      }
+    });
+
+    viewport.addEventListener('mousedown',(e)=>{
+      if (e.target===viewport || e.target===canvas || e.target===gridLayer || e.target===fogCanvas){
+        if (selectedToken) selectedToken.classList.remove('selected');
+        selectedToken=null;
+        closeInspector();
+      }
+    });
+
+    // ===== PeerJS setup =====
     function initNetwork(){
       const urlParams=new URLSearchParams(window.location.search);
       const roomID=urlParams.get('room');
@@ -2332,22 +2297,12 @@
           statusDot.classList.add('online');
           toggleNetworkPanel();
 
-          // load UI stores
-          renderSceneList();
-          renderProfileGrid();
-          rebuildLayersPanel();
-
           peer.on('connection',(conn)=>{
             connections.push(conn);
             setupConnection(conn);
             conn.on('open',()=>setTimeout(()=>sendSYNC(conn),200));
-            conn.on('close',()=>{ connections=connections.filter(c=>c!==conn); });
+            conn.on('close',()=>{connections=connections.filter(c=>c!==conn);});
           });
-        }
-
-        // players also can render lists? no.
-        if (!isHost){
-          renderProfileGrid(); // optional empty
         }
       });
 
@@ -2381,23 +2336,24 @@
       conn.on('data',(data)=>handleNetworkData(data, conn.peer));
     }
 
+    // ===== Scene UI hooks =====
+    function initUI(){
+      const q=document.getElementById('quality');
+      q?.addEventListener('input',updateQualityLabel);
+      q?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('max-dim')?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('compress-images')?.addEventListener('change',updateSceneSizeEstimate);
+      document.getElementById('embed-remote')?.addEventListener('change',updateSceneSizeEstimate);
+      updateQualityLabel();
+      updateSceneSizeEstimate();
+    }
+
+    // ===== Context menu off =====
+    window.addEventListener('contextmenu',(e)=>e.preventDefault());
+
     // ===== Start =====
     initNetwork();
-
-    // initial render for host when sidebar opens
-    // (host render called on peer open)
-  </script>
-
-  <script>
-    // ===== Remove "token-controls": players still can interact by direct manipulations allowed. =====
-    // NOTE: Player actions are only MOVE/UPDATE_PROP for allowed props via REQ.
-    // Since we removed token-controls, players can only MOVE and resize via Ctrl+Wheel / handle (if unlocked).
-    // Host uses Inspector for all settings.
-
-    // ===== Player optional adjustments (rotation/zoom/fit) =====
-    // Without token-controls, players don't have UI for these. That's intended.
-    // If you quiser depois: podemos colocar atalhos de teclado pro player (ex: R/E para rotacionar),
-    // mas você pediu "somente inspector", então mantive assim.
+    initUI();
   </script>
 </body>
 </html>
