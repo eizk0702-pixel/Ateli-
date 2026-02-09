@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - Online P2P (Host Autoritativo + Cenas Save/Load)</title>
+  <title>Tabletop Luxury - Online P2P (Host Autoritativo + Cenas + Perfil/Biblioteca)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -112,6 +112,7 @@
       pointer-events: none;
     }
 
+    /* Portrait / manuseio: por padrão não corta */
     .token iframe, .token img {
       width: 100%;
       height: 100%;
@@ -156,7 +157,7 @@
       border: 1px solid rgba(197, 160, 89, 0.4);
       border-radius: 40px;
       padding: 8px 16px;
-      gap: 15px;
+      gap: 12px;
       z-index: 200;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       white-space: nowrap;
@@ -178,7 +179,7 @@
     .token-btn:hover {
       opacity: 1;
       color: var(--gold);
-      transform: scale(1.1);
+      transform: scale(1.08);
     }
 
     .hud-element { transition: opacity 0.4s ease, transform 0.4s ease; }
@@ -368,11 +369,122 @@
       opacity: 0.95;
     }
     #role-badge b { color: var(--gold); }
+
+    /* --- Biblioteca / Perfil --- */
+    .library-panel {
+      position: fixed;
+      top: 170px;
+      right: 20px;
+      z-index: 1200;
+      width: 360px;
+      max-height: 520px;
+      background: var(--panel-bg);
+      border: 1px solid rgba(197, 160, 89, 0.2);
+      border-radius: 16px;
+      padding: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      overflow: hidden;
+      display: none;
+    }
+    .library-panel.show { display: block; }
+
+    .library-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .library-tab {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(197,160,89,.25);
+      background: rgba(255,255,255,.03);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      cursor: pointer;
+      color: #ccc;
+      text-align: center;
+    }
+    .library-tab.active {
+      color: var(--gold);
+      border-color: rgba(197,160,89,.55);
+      background: rgba(255,255,255,.05);
+    }
+
+    .library-search {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(197,160,89,.2);
+      background: rgba(0,0,0,.35);
+      color: #fff;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .library-grid {
+      overflow: auto;
+      max-height: 360px;
+      padding-right: 6px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .asset-card {
+      border: 1px solid rgba(197,160,89,.18);
+      background: rgba(255,255,255,.03);
+      border-radius: 14px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .asset-thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      background: rgba(0,0,0,.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .asset-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .asset-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .asset-actions button {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(197,160,89,.25);
+      background: rgba(255,255,255,.03);
+      color: #ddd;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .asset-actions button:hover {
+      color: var(--gold);
+      border-color: rgba(197,160,89,.55);
+      background: rgba(255,255,255,.05);
+    }
   </style>
 </head>
 
 <body>
-  <div id="notification">Link copiado!</div>
+  <div id="notification">OK</div>
   <div id="role-badge">Modo: <b id="role-text">...</b></div>
 
   <div class="btn-toggle-hud" onclick="toggleHUD()" title="Esconder/Mostrar Interface">👁️</div>
@@ -384,6 +496,7 @@
       <button class="btn-luxury" onclick="toggleGrid()">Grelha</button>
       <button class="btn-luxury" id="btn-lock-all" onclick="unlockEverything()">🔓 Destrancar</button>
       <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
+      <button class="btn-luxury" id="btn-library" onclick="toggleLibrary()">📦 Biblioteca</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -435,6 +548,33 @@
       </label>
     </div>
 
+    <!-- Painel Biblioteca / Perfil (HOST) -->
+    <div class="library-panel" id="library-panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Biblioteca</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-luxury py-0 px-2 text-[10px]" onclick="saveProfileToFile()">Salvar Perfil</button>
+          <label class="btn-luxury py-0 px-2 text-[10px] cursor-pointer">
+            Carregar Perfil
+            <input type="file" id="profile-file" accept="application/json" style="display:none" onchange="loadProfileFromFile(event)">
+          </label>
+        </div>
+      </div>
+
+      <div class="library-tabs">
+        <div class="library-tab active" id="tab-maps" onclick="setLibraryTab('maps')">Mapas</div>
+        <div class="library-tab" id="tab-tokens" onclick="setLibraryTab('tokens')">Tokens</div>
+      </div>
+
+      <input class="library-search" id="library-search" placeholder="Buscar..." oninput="renderLibrary()" />
+      <div class="library-grid" id="library-grid"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; opacity:.8;">
+        <span id="library-count">0 itens</span>
+        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="clearLibrary()">Limpar Biblioteca</button>
+      </div>
+    </div>
+
     <div class="sidebar hud-element" id="sidebar">
       <div class="toggle-sidebar-btn" onclick="toggleSidebar()">☰</div>
       <div class="p-6 overflow-y-auto h-full">
@@ -449,7 +589,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Dica: imagens locais viram dataURL. Se ficar pesado, use compressão no Save de Cena.
+            Dica: imagens locais (upload) viram dataURL e podem ser salvas no perfil/cena.
           </p>
         </div>
 
@@ -462,7 +602,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('token-url', 'pc')">Adicionar Peça</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Players só movem tokens destravados. Ações passam pelo Host (autoridade).
+            Players só movem tokens destravados. Host tem autoridade.
           </p>
         </div>
 
@@ -528,6 +668,19 @@
     const btnD20 = document.getElementById('btn-d20');
     const btnD6 = document.getElementById('btn-d6');
     const btnSaveScene = document.getElementById('btn-save-scene');
+    const btnLibrary = document.getElementById('btn-library');
+
+    // Biblioteca / Perfil
+    const libraryPanel = document.getElementById('library-panel');
+    const libraryGrid = document.getElementById('library-grid');
+    const librarySearch = document.getElementById('library-search');
+    const libraryCount = document.getElementById('library-count');
+    let libraryTab = "maps"; // "maps" | "tokens"
+
+    const library = {
+      maps: [],   // [{id,name,src}]
+      tokens: []  // [{id,name,src,contentType}]
+    };
 
     // --- CÂMERA ---
     let scale = 1;
@@ -543,7 +696,7 @@
     const state = {
       mapSrc: null,
       mapLocked: false,
-      tokens: {} // id -> {id, src, type, x, y, w, h, rotation, flipped, innerZoom, locked}
+      tokens: {} // id -> tokenProps
     };
 
     // --- REDE / PEERJS ---
@@ -553,7 +706,7 @@
     let myId = null;
     let isHost = false;
 
-    // ICE servers (STUN). Você pode adicionar TURN depois.
+    // ICE servers (STUN)
     const PEER_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -632,6 +785,8 @@
       btnD6.style.display = isHost ? "" : "none";
       if (btnSaveScene) btnSaveScene.style.display = isHost ? "" : "none";
       if (scenePanel) scenePanel.style.display = isHost ? "" : "none";
+      if (btnLibrary) btnLibrary.style.display = isHost ? "" : "none";
+      if (libraryPanel) libraryPanel.style.display = isHost ? "" : "none";
     }
 
     // =============== Transform / Pan / Zoom ===============
@@ -704,17 +859,14 @@
         applyFullSync(data.state);
         return;
       }
-
       if (data.kind === "ACT") {
         applyAction(data.action, true);
         return;
       }
-
       if (data.kind === "REQ") {
         if (!isHost) return;
         const sender = data.sender || connPeerId || "unknown";
-        const action = data.action;
-        applyHostAuthorizedAction(action, { sender });
+        applyHostAuthorizedAction(data.action, { sender });
       }
     }
 
@@ -732,8 +884,26 @@
       if (String(tok.locked) === "true") return { ok: false, reason: "Token travado" };
 
       if (action.type === "UPDATE_PROP") {
-        const allowedProps = new Set(["rotation", "flipped", "innerZoom", "size"]);
+        const allowedProps = new Set(["rotation", "flipped", "innerZoom", "size", "fitMode"]);
         if (!allowedProps.has(action.prop)) return { ok: false, reason: "Propriedade não permitida" };
+
+        if (action.prop === "innerZoom") {
+          const z = Number(action.value);
+          if (!Number.isFinite(z) || z < 0.2 || z > 5) return { ok: false, reason: "Zoom inválido" };
+        }
+        if (action.prop === "rotation") {
+          const r = Number(action.value);
+          if (!Number.isFinite(r)) return { ok: false, reason: "Rotação inválida" };
+        }
+        if (action.prop === "size") {
+          const w = Number(action.value?.w), h = Number(action.value?.h);
+          if (!Number.isFinite(w) || !Number.isFinite(h)) return { ok: false, reason: "Size inválido" };
+          if (w < 40 || w > 2500 || h < 40 || h > 2500) return { ok: false, reason: "Size fora do limite" };
+        }
+        if (action.prop === "fitMode") {
+          const m = String(action.value);
+          if (!["contain", "cover"].includes(m)) return { ok: false, reason: "fitMode inválido" };
+        }
       }
 
       return { ok: true };
@@ -743,7 +913,6 @@
       if (!action || !action.type) return;
 
       const cameFromClient = sender && sender !== myId;
-
       if (cameFromClient) {
         const v = validateClientAction(action, sender);
         if (!v.ok) {
@@ -762,19 +931,14 @@
         case "MOVE": {
           const { id, x, y } = action;
           moveTokenDOM(id, x, y);
-          if (isHost && state.tokens[id]) {
-            state.tokens[id].x = x;
-            state.tokens[id].y = y;
-          }
+          if (isHost && state.tokens[id]) { state.tokens[id].x = x; state.tokens[id].y = y; }
           break;
         }
 
         case "CREATE_TOKEN": {
           const { id, src, contentType, props } = action;
           addTokenLocal(src, contentType, id, props);
-          if (isHost) {
-            state.tokens[id] = normalizeTokenProps(id, src, contentType, props);
-          }
+          if (isHost) state.tokens[id] = normalizeTokenProps(id, src, contentType, props);
           break;
         }
 
@@ -793,6 +957,7 @@
             if (prop === "innerZoom") state.tokens[id].innerZoom = value;
             if (prop === "rotation") state.tokens[id].rotation = value;
             if (prop === "flipped") state.tokens[id].flipped = value;
+            if (prop === "fitMode") state.tokens[id].fitMode = value;
             if (prop === "size") { state.tokens[id].w = value.w; state.tokens[id].h = value.h; }
           }
           break;
@@ -862,10 +1027,7 @@
       const urlParams = new URLSearchParams(window.location.search);
       const roomID = urlParams.get('room');
 
-      peer = new Peer(null, {
-        debug: 2,
-        config: PEER_ICE_CONFIG
-      });
+      peer = new Peer(null, { debug: 2, config: PEER_ICE_CONFIG });
 
       peer.on('open', (id) => {
         myId = id;
@@ -890,13 +1052,8 @@
             connections.push(conn);
             setupConnection(conn);
 
-            conn.on('open', () => {
-              setTimeout(() => sendSYNC(conn), 200);
-            });
-
-            conn.on('close', () => {
-              connections = connections.filter(c => c !== conn);
-            });
+            conn.on('open', () => { setTimeout(() => sendSYNC(conn), 200); });
+            conn.on('close', () => { connections = connections.filter(c => c !== conn); });
           });
         }
       });
@@ -988,13 +1145,19 @@
       if (!url) return;
 
       if (isImageUrl(url)) {
-        if (type === 'map') applyMapLocal(url, true);
-        else hostCreateToken(url, 'image');
+        if (type === 'map') {
+          applyMapLocal(url, true);
+          addToLibrary("maps", url);
+        } else {
+          hostCreateToken(url, 'image', false);
+          addToLibrary("tokens", url);
+        }
         document.getElementById(inputId).value = "";
       } else {
         if (type === 'map') alert("Mapas precisam ser imagens diretas.");
         else {
-          hostCreateToken(url, 'web');
+          // web tokens não entram na biblioteca (por pedido: só imagens)
+          hostCreateToken(url, 'web', false);
           document.getElementById(inputId).value = "";
         }
       }
@@ -1009,8 +1172,13 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
-        if (type === 'map') applyMapLocal(dataUrl, true);
-        else hostCreateToken(dataUrl, 'image');
+        if (type === 'map') {
+          applyMapLocal(dataUrl, true);
+          addToLibrary("maps", dataUrl, "mapa-local");
+        } else {
+          hostCreateToken(dataUrl, 'image', false);
+          addToLibrary("tokens", dataUrl, "token-local");
+        }
         updateSceneSizeEstimate();
       };
       reader.readAsDataURL(file);
@@ -1030,16 +1198,24 @@
         rotation: p.rotation ?? 0,
         flipped: p.flipped ?? "false",
         innerZoom: p.innerZoom ?? 1,
-        locked: p.locked ?? "false"
+        locked: p.locked ?? "false",
+        fitMode: p.fitMode ?? "contain",
+        portrait: p.portrait ?? "false"
       };
     }
 
-    function hostCreateToken(src, contentType) {
+    function hostCreateToken(src, contentType, autoPortrait = false) {
       if (!isHost) return;
 
       const id = generateUUID();
-      const width = (contentType === 'web') ? 400 : 120;
-      const height = (contentType === 'web') ? 225 : 120;
+
+      let width = (contentType === 'web') ? 400 : 140;
+      let height = (contentType === 'web') ? 225 : 140;
+
+      if (contentType === "image" && autoPortrait) {
+        width = 220;
+        height = 320;
+      }
 
       const centerX = (window.innerWidth / 2 - posX) / scale;
       const centerY = (window.innerHeight / 2 - posY) / scale;
@@ -1052,7 +1228,9 @@
         rotation: 0,
         flipped: "false",
         innerZoom: 1,
-        locked: "false"
+        locked: "false",
+        fitMode: "contain",
+        portrait: (contentType === "image" && autoPortrait) ? "true" : "false"
       };
 
       const action = { type: "CREATE_TOKEN", id, src, contentType, props };
@@ -1070,8 +1248,8 @@
       token.dataset.type = contentType;
       token.className = `token`;
 
-      const width = props?.w ? parseInt(props.w) : 120;
-      const height = props?.h ? parseInt(props.h) : 120;
+      const width = props?.w ? parseInt(props.w) : (contentType === "web" ? 400 : 140);
+      const height = props?.h ? parseInt(props.h) : (contentType === "web" ? 225 : 140);
 
       token.style.width = width + "px";
       token.style.height = height + "px";
@@ -1092,6 +1270,10 @@
       token.dataset.flipped = props?.flipped ?? "false";
       token.dataset.innerZoom = props?.innerZoom ?? 1;
       token.dataset.locked = props?.locked ?? "false";
+      token.dataset.fitMode = props?.fitMode ?? "contain";
+      token.dataset.portrait = props?.portrait ?? "false";
+
+      if (token.dataset.portrait === "true") token.setAttribute("data-portrait", "true");
 
       if (token.dataset.locked === "true") {
         token.classList.add('locked');
@@ -1121,8 +1303,12 @@
       const controls = document.createElement('div');
       controls.className = 'token-controls';
       controls.innerHTML = `
+        <span class="token-btn" title="Tamanho -" onclick="scaleToken(event, -40)">📏➖</span>
+        <span class="token-btn" title="Tamanho +" onclick="scaleToken(event, 40)">📏➕</span>
         <span class="token-btn" title="Zoom Interno -" onclick="zoomInnerToken(event, -0.1)">➖</span>
         <span class="token-btn" title="Zoom Interno +" onclick="zoomInnerToken(event, 0.1)">➕</span>
+        <span class="token-btn" title="Fit (cabem perfeito)" onclick="fitToken(event)">🧩</span>
+        <span class="token-btn" title="Reset" onclick="resetToken(event)">♻️</span>
         <span class="token-btn" title="Espelhar (F)" onclick="flipToken(this.closest('.token'))">↔️</span>
         <span class="token-btn" title="Girar 45°" onclick="rotateToken(event, 45)">🔄</span>
         <span class="token-btn" title="Trancar Peça" onclick="lockToken(event)">🔒</span>
@@ -1151,7 +1337,7 @@
           const startH = parseInt(token.dataset.sizeH);
           const ratio = startH / startW;
           const newW = Math.max(40, Math.min(startW + delta, 2500));
-          const newH = newW * ratio;
+          const newH = Math.max(40, Math.min(newW * ratio, 2500));
           sendREQ({ type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w: newW, h: newH } });
         }
       }, { passive: false });
@@ -1169,7 +1355,7 @@
         function onMove(me) {
           const deltaW = ((me.clientX - startX) / scale) * 1.5;
           let w = Math.max(40, Math.min(startW + deltaW, 2500));
-          let h = w * ratio;
+          let h = Math.max(40, Math.min(w * ratio, 2500));
           pendingW = Math.round(w);
           pendingH = Math.round(h);
 
@@ -1249,6 +1435,9 @@
       } else if (prop === 'flipped') {
         token.dataset.flipped = value;
         updateImgTransform(token);
+      } else if (prop === 'fitMode') {
+        token.dataset.fitMode = value;
+        updateImgTransform(token);
       } else if (prop === 'size') {
         token.style.width = value.w + "px";
         token.style.height = value.h + "px";
@@ -1261,6 +1450,7 @@
         if (prop === "innerZoom") state.tokens[id].innerZoom = value;
         if (prop === "rotation") state.tokens[id].rotation = value;
         if (prop === "flipped") state.tokens[id].flipped = value;
+        if (prop === "fitMode") state.tokens[id].fitMode = value;
         if (prop === "size") { state.tokens[id].w = value.w; state.tokens[id].h = value.h; }
       }
 
@@ -1270,6 +1460,12 @@
     function updateImgTransform(token) {
       const el = token.querySelector('img') || token.querySelector('iframe');
       if (!el) return;
+
+      // fitMode só faz sentido pra IMG
+      if (el.tagName === "IMG") {
+        el.style.objectFit = token.dataset.fitMode || "contain";
+      }
+
       const rotation = token.dataset.rotation || 0;
       const flipped = token.dataset.flipped === "true";
       const innerZoom = token.dataset.innerZoom || 1;
@@ -1417,11 +1613,69 @@
       updateSceneSizeEstimate();
     };
 
+    window.scaleToken = (e, deltaW) => {
+      e.stopPropagation();
+      const token = e.target.closest('.token');
+      if (!token || token.dataset.locked === "true") return;
+
+      const w0 = parseInt(token.dataset.sizeW);
+      const h0 = parseInt(token.dataset.sizeH);
+      const ratio = h0 / w0;
+
+      let w = Math.max(40, Math.min(2500, w0 + deltaW));
+      let h = Math.max(40, Math.min(2500, Math.round(w * ratio)));
+
+      const action = { type: "UPDATE_PROP", id: token.dataset.uuid, prop: "size", value: { w, h } };
+
+      if (isHost) {
+        applyAction(action, false);
+        broadcastACT(action);
+      } else {
+        sendREQ(action);
+      }
+      updateSceneSizeEstimate();
+    };
+
+    window.fitToken = (e) => {
+      e.stopPropagation();
+      const token = e.target.closest('.token');
+      if (!token || token.dataset.locked === "true") return;
+
+      const id = token.dataset.uuid;
+      const act1 = { type: "UPDATE_PROP", id, prop: "innerZoom", value: 1 };
+      const act2 = { type: "UPDATE_PROP", id, prop: "fitMode", value: "contain" };
+
+      if (isHost) {
+        applyAction(act1, false); broadcastACT(act1);
+        applyAction(act2, false); broadcastACT(act2);
+      } else {
+        sendREQ(act1);
+        sendREQ(act2);
+      }
+    };
+
+    window.resetToken = (e) => {
+      e.stopPropagation();
+      const token = e.target.closest('.token');
+      if (!token || token.dataset.locked === "true") return;
+
+      const id = token.dataset.uuid;
+      const acts = [
+        { type: "UPDATE_PROP", id, prop: "innerZoom", value: 1 },
+        { type: "UPDATE_PROP", id, prop: "rotation", value: 0 },
+        { type: "UPDATE_PROP", id, prop: "flipped", value: "false" },
+        { type: "UPDATE_PROP", id, prop: "fitMode", value: "contain" }
+      ];
+
+      if (isHost) acts.forEach(a => { applyAction(a, false); broadcastACT(a); });
+      else acts.forEach(a => sendREQ(a));
+    };
+
     function resizeTokenDirect(token, amount, emit) {
       let w = parseInt(token.dataset.sizeW) + amount;
       w = Math.max(40, Math.min(w, 2500));
       let currentRatio = (parseInt(token.dataset.sizeH) / parseInt(token.dataset.sizeW));
-      let h = w * currentRatio;
+      let h = Math.max(40, Math.min(2500, Math.round(w * currentRatio)));
 
       const id = token.dataset.uuid;
       const action = { type: "UPDATE_PROP", id, prop: "size", value: { w: Math.round(w), h: Math.round(h) } };
@@ -1500,7 +1754,6 @@
     // ===============================
     // CENAS (SAVE/LOAD por ARQUIVO) + EMBUTIR + COMPRESSÃO + ESTIMATIVA
     // ===============================
-
     function byteLengthOfString(str) { return new Blob([str]).size; }
 
     function prettyBytes(bytes) {
@@ -1524,8 +1777,7 @@
       try {
         const resp = await fetch(url, { mode: "cors" });
         if (!resp.ok) throw new Error("HTTP " + resp.status);
-        const blob = await resp.blob();
-        return blob;
+        return await resp.blob();
       } catch {
         return null;
       }
@@ -1553,10 +1805,7 @@
         const ctx = c.getContext("2d", { alpha: true });
         ctx.drawImage(bmp, 0, 0, nw, nh);
 
-        const outBlob = await new Promise((resolve) => {
-          c.toBlob((b) => resolve(b), "image/webp", quality);
-        });
-
+        const outBlob = await new Promise((resolve) => c.toBlob(resolve, "image/webp", quality));
         if (!outBlob) return null;
         return await blobToDataURL(outBlob);
       } catch {
@@ -1590,12 +1839,8 @@
     }
 
     function estimatePayloadSizeBytes(payload) {
-      try {
-        const json = JSON.stringify(payload);
-        return byteLengthOfString(json);
-      } catch {
-        return 0;
-      }
+      try { return byteLengthOfString(JSON.stringify(payload)); }
+      catch { return 0; }
     }
 
     function updateQualityLabel() {
@@ -1661,19 +1906,17 @@
         }
       }
 
-      // TOKENS
+      // TOKENS (compress só imagens)
       const ids = Object.keys(payload.tokens || {});
       for (const id of ids) {
         const t = payload.tokens[id];
         if (!t || !t.src) continue;
 
-        // Embutir URL (se possível)
         if (embedRemote && typeof t.src === "string" && t.src.startsWith("http")) {
           const dataUrl = await tryFetchAsDataURL(t.src);
           if (dataUrl) t.src = dataUrl;
         }
 
-        // Comprimir só imagens
         if (compress && t.type === "image") {
           t.src = await compressImageSrcIfPossible(t.src, maxDim, quality);
         }
@@ -1719,12 +1962,14 @@
         const props = {
           x: t.x ?? "0px",
           y: t.y ?? "0px",
-          w: t.w ?? 120,
-          h: t.h ?? 120,
+          w: t.w ?? 140,
+          h: t.h ?? 140,
           rotation: t.rotation ?? 0,
           flipped: t.flipped ?? "false",
           innerZoom: t.innerZoom ?? 1,
-          locked: t.locked ?? "false"
+          locked: t.locked ?? "false",
+          fitMode: t.fitMode ?? "contain",
+          portrait: t.portrait ?? "false"
         };
 
         const createAction = {
@@ -1775,8 +2020,178 @@
         try {
           const payload = JSON.parse(String(reader.result || "{}"));
           hostLoadScenePayload(payload);
-        } catch (e) {
+        } catch {
           alert("JSON inválido.");
+        }
+        event.target.value = "";
+      };
+      reader.readAsText(file);
+    }
+
+    // ===============================
+    // BIBLIOTECA / PERFIL (profile.json) - só imagens
+    // ===============================
+    function toggleLibrary() {
+      if (!isHost) return alert("Apenas o Host usa Biblioteca/Perfil.");
+      libraryPanel.classList.toggle('show');
+      renderLibrary();
+    }
+
+    function setLibraryTab(tab) {
+      libraryTab = tab;
+      document.getElementById('tab-maps').classList.toggle('active', tab === 'maps');
+      document.getElementById('tab-tokens').classList.toggle('active', tab === 'tokens');
+      renderLibrary();
+    }
+
+    function normalizeNameFromSrc(src, fallback) {
+      if (!src) return fallback || "asset";
+      if (src.startsWith("data:image")) return fallback || "imagem-local";
+      try {
+        const u = new URL(src);
+        const last = u.pathname.split("/").pop() || fallback || "imagem";
+        return decodeURIComponent(last).slice(0, 40);
+      } catch {
+        return fallback || "asset";
+      }
+    }
+
+    function addToLibrary(kind, src, name = null, contentType = "image") {
+      if (!isHost) return;
+      if (!src) return;
+
+      const list = kind === "maps" ? library.maps : library.tokens;
+      if (list.some(x => x.src === src)) return;
+
+      const item = {
+        id: generateUUID(),
+        name: name || normalizeNameFromSrc(src, kind === "maps" ? "mapa" : "token"),
+        src,
+        contentType
+      };
+
+      list.unshift(item);
+      renderLibrary();
+    }
+
+    function renderLibrary() {
+      if (!isHost) return;
+      const term = (librarySearch?.value || "").toLowerCase().trim();
+
+      const list = libraryTab === "maps" ? library.maps : library.tokens;
+      const filtered = term ? list.filter(x => (x.name || "").toLowerCase().includes(term)) : list;
+
+      libraryGrid.innerHTML = "";
+
+      filtered.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "asset-card";
+
+        const thumb = document.createElement("div");
+        thumb.className = "asset-thumb";
+
+        const img = document.createElement("img");
+        img.src = item.src;
+        img.alt = item.name || "asset";
+        thumb.appendChild(img);
+
+        const title = document.createElement("div");
+        title.style.fontSize = "10px";
+        title.style.opacity = ".85";
+        title.style.whiteSpace = "nowrap";
+        title.style.overflow = "hidden";
+        title.style.textOverflow = "ellipsis";
+        title.textContent = item.name || "asset";
+
+        const actions = document.createElement("div");
+        actions.className = "asset-actions";
+
+        if (libraryTab === "maps") {
+          const btnUse = document.createElement("button");
+          btnUse.textContent = "Usar";
+          btnUse.onclick = () => applyMapLocal(item.src, true);
+          actions.appendChild(btnUse);
+        } else {
+          const btnAdd = document.createElement("button");
+          btnAdd.textContent = "Add";
+          // Da biblioteca, entra em modo portrait-friendly por padrão
+          btnAdd.onclick = () => hostCreateToken(item.src, "image", true);
+          actions.appendChild(btnAdd);
+        }
+
+        const btnDel = document.createElement("button");
+        btnDel.textContent = "Remover";
+        btnDel.onclick = () => removeFromLibrary(item.id);
+        actions.appendChild(btnDel);
+
+        card.appendChild(thumb);
+        card.appendChild(title);
+        card.appendChild(actions);
+
+        libraryGrid.appendChild(card);
+      });
+
+      const count = (libraryTab === "maps" ? library.maps.length : library.tokens.length);
+      if (libraryCount) libraryCount.textContent = `${count} itens`;
+    }
+
+    function removeFromLibrary(id) {
+      if (!isHost) return;
+      library.maps = library.maps.filter(x => x.id !== id);
+      library.tokens = library.tokens.filter(x => x.id !== id);
+      renderLibrary();
+    }
+
+    function clearLibrary() {
+      if (!isHost) return;
+      if (!confirm("Limpar toda a Biblioteca?")) return;
+      library.maps = [];
+      library.tokens = [];
+      renderLibrary();
+    }
+
+    function saveProfileToFile() {
+      if (!isHost) return;
+
+      const payload = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        library
+      };
+
+      const json = JSON.stringify(payload);
+      const blob = new Blob([json], { type: "application/json" });
+
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = URL.createObjectURL(blob);
+      a.download = `perfil-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+
+      showNotification("Perfil salvo!");
+    }
+
+    function loadProfileFromFile(event) {
+      if (!isHost) return;
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || "{}"));
+          if (!payload?.library) throw new Error("Sem library");
+
+          library.maps = Array.isArray(payload.library.maps) ? payload.library.maps : [];
+          library.tokens = Array.isArray(payload.library.tokens) ? payload.library.tokens : [];
+
+          showNotification("Perfil carregado!");
+          renderLibrary();
+        } catch {
+          alert("perfil.json inválido.");
         }
         event.target.value = "";
       };
