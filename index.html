@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Tabletop Luxury - P2P (Mapa “palpável” + Camadas + Biblioteca + Paredes/Portas + Física + Online Melhorado)</title>
+  <title>Tabletop Luxury - P2P (Mapa “palpável” + Camadas + Biblioteca de Assets)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -18,10 +18,6 @@
       --glass:rgba(255,255,255,.03);
       --status-online:#4ade80;
       --status-offline:#ef4444;
-      --wall:#e5e7eb;
-      --door:#fbbf24;
-      --door-open:#34d399;
-      --obstacle-fill:rgba(255,255,255,.06);
     }
     body{margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Inter',sans-serif;color:#e0e0e0;}
 
@@ -54,44 +50,6 @@
         linear-gradient(to bottom, rgba(197,160,89,.05) 1px, transparent 1px);
       background-size:50px 50px;
       z-index:6;
-    }
-
-    /* OBSTÁCULOS (paredes/portas) */
-    #obstacles-layer{
-      position:absolute;top:0;left:0;width:100%;height:100%;
-      z-index:7;
-      pointer-events:none;
-    }
-    #obstacles-svg{
-      position:absolute;top:0;left:0;
-      width:10000px;height:10000px;
-    }
-    #obstacles-layer.editing{pointer-events:auto;}
-    #obstacles-hit{
-      position:absolute;top:0;left:0;
-      width:10000px;height:10000px;
-      background:transparent;
-      cursor:crosshair;
-    }
-    .ob-rect{
-      fill: var(--obstacle-fill);
-      stroke-width:2;
-      shape-rendering:geometricPrecision;
-    }
-    .ob-rect.wall{stroke:var(--wall);}
-    .ob-rect.door{stroke:var(--door);}
-    .ob-rect.door.open{stroke:var(--door-open);}
-    .ob-label{
-      font-size:10px;
-      fill: rgba(255,255,255,.75);
-      user-select:none;
-      pointer-events:none;
-    }
-    .ob-handle{
-      fill: rgba(197,160,89,.7);
-      stroke: rgba(0,0,0,.3);
-      stroke-width:1;
-      cursor: pointer;
     }
 
     /* TOKENS = camadas >= 1 */
@@ -292,54 +250,10 @@
       background:rgba(255,255,255,.03);color:#ddd;
     }
     .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-
-    /* Painel Paredes/Portas */
-    .ob-panel{
-      position:fixed;top:230px;right:20px;z-index:1300;width:360px;max-height:520px;
-      background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
-      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
-      box-shadow:0 10px 30px rgba(0,0,0,.45);
-      display:none;
-    }
-    .ob-panel.show{display:block;}
-    .ob-mode-row{display:flex;gap:8px;margin-bottom:10px;}
-    .ob-mode-btn{
-      flex:1;padding:8px 10px;border-radius:12px;border:1px solid rgba(197,160,89,.25);
-      background:rgba(255,255,255,.03);font-size:11px;text-transform:uppercase;letter-spacing:.6px;
-      cursor:pointer;color:#ccc;text-align:center;
-    }
-    .ob-mode-btn.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-    .ob-list{max-height:290px;overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:8px;}
-    .ob-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(197,160,89,.12);}
-    .ob-item small{opacity:.75;}
-    .ob-actions{display:flex;gap:6px;}
-    .ob-actions button{
-      padding:6px 8px;border-radius:10px;border:1px solid rgba(197,160,89,.25);
-      background:rgba(255,255,255,.03);color:#ddd;font-size:10px;cursor:pointer;
-    }
-    .ob-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
-
-    /* Loading do mapa */
-    #map-loading{
-      position:fixed;left:50%;top:50%;
-      transform:translate(-50%,-50%);
-      z-index:9000;
-      background:rgba(0,0,0,.85);
-      border:1px solid rgba(197,160,89,.45);
-      color:var(--gold);
-      padding:14px 18px;
-      border-radius:14px;
-      display:none;
-      backdrop-filter:blur(10px);
-      font-family:'Cinzel',serif;
-      letter-spacing:.5px;
-    }
-    #map-loading.show{display:block;}
   </style>
 </head>
 
 <body>
-  <div id="map-loading">Carregando mapa...</div>
   <div id="notification">OK</div>
   <div id="role-badge">Modo: <b id="role-text">...</b></div>
 
@@ -354,7 +268,6 @@
       <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
       <button class="btn-luxury" id="btn-library" onclick="toggleLibrary()">📦 Biblioteca</button>
       <button class="btn-luxury" id="btn-layers" onclick="toggleLayersPanel()">🧱 Camadas</button>
-      <button class="btn-luxury" id="btn-obstacles" onclick="toggleObstaclesPanel()">🚧 Paredes</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -367,7 +280,6 @@
       <span id="status-text">Offline</span>
       <div class="h-4 w-px bg-white/20 mx-2"></div>
       <button class="btn-luxury py-0 px-2 text-[10px]" onclick="copyInviteLink()" id="btn-invite">🔗 Copiar Convite</button>
-      <button class="btn-luxury py-0 px-2 text-[10px]" onclick="forceResync()" id="btn-resync">🔄 Sync</button>
     </div>
 
     <!-- Painel de Cenas -->
@@ -441,38 +353,7 @@
       </div>
       <div id="layers-list"></div>
       <div style="font-size:10px;opacity:.75; margin-top:10px;">
-        Dica: tokens têm “layer” e “kind”. Player só move o que está destravado e em camada visível.
-      </div>
-    </div>
-
-    <!-- Paredes/Portas -->
-    <div class="ob-panel" id="ob-panel">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
-        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Paredes & Portas</div>
-        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="renderObstaclesList()">Atualizar</button>
-      </div>
-
-      <div class="ob-mode-row">
-        <div class="ob-mode-btn active" id="ob-mode-wall" onclick="setObMode('wall')">Parede</div>
-        <div class="ob-mode-btn" id="ob-mode-door" onclick="setObMode('door')">Porta</div>
-        <div class="ob-mode-btn" id="ob-mode-select" onclick="setObMode('select')">Selecionar</div>
-      </div>
-
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="toggleObstacleEditing()">✏️ Editar</button>
-        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="clearObstacles()">🧹 Limpar</button>
-        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="toggleObstacleSnap()">🧲 Snap</button>
-      </div>
-
-      <div style="font-size:10px;opacity:.75; margin-bottom:10px;">
-        Como usar: ative <b>Editar</b>, clique e arraste no mapa para criar um retângulo. <b>Porta</b> pode ser <b>abrir/fechar</b>.
-        Física: tokens não atravessam paredes/portas fechadas (host e players).
-      </div>
-
-      <div class="ob-list" id="ob-list"></div>
-
-      <div style="font-size:10px;opacity:.75; margin-top:10px;">
-        Dica: segure <b>Shift</b> pra forçar “Porta” durante desenho.
+        Dica: tokens têm “layer” e “kind” (player/asset). Player só move o que está destravado e em camada visível.
       </div>
     </div>
 
@@ -491,7 +372,7 @@
             <button class="btn-luxury w-full border border-gold/30" onclick="importFromUrl('map-url', 'map')">Definir Mapa</button>
           </div>
           <p class="text-[10px] opacity-50 mt-3 leading-relaxed italic">
-            Agora o mapa é arrastável com inércia. Trave para evitar mover.
+            Agora o mapa é arrastável com “inércia” (palpável). Trave para evitar mover.
           </p>
         </div>
 
@@ -545,22 +426,15 @@
     <div id="canvas-container">
       <div id="map-container" class="map-layer"></div>
       <div id="grid-layer" class="grid-layer"></div>
-
-      <!-- Obstáculos -->
-      <div id="obstacles-layer">
-        <svg id="obstacles-svg" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div id="obstacles-hit"></div>
-      </div>
     </div>
   </div>
 
   <script>
     /********************************************************************
-     * ✅ NOVO (pedido)
-     * - Mapear paredes e portas (host desenha retângulos)
-     * - Física: tokens não atravessam paredes/portas fechadas
-     * - Online melhorado: HELLO/ACK + RESYNC + SYNC “mais robusto”
-     * - Mantém TODAS as mecânicas existentes (mapa palpável, camadas, biblioteca, cenas, etc.)
+     * ✅ MELHORIAS PEDIDAS
+     * - MAPA palpável: arrasta + inércia (“física”) + sync em rede + salva/recupera posição
+     * - SISTEMA DE CAMADAS: mapa sempre layer 0; tokens têm layer >= 1; visibilidade/lock por layer
+     * - BIBLIOTECA/ASSETS: separa Mapas / Players / Assets (tudo que não é player nem mapa)
      ********************************************************************/
 
     // ===== UTIL =====
@@ -572,8 +446,6 @@
       n.classList.add('active');
       setTimeout(()=>n.classList.remove('active'),2000);
     }
-
-    function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
 
     // ===== ELEMENTOS =====
     const canvas = document.getElementById('canvas-container');
@@ -605,9 +477,6 @@
     const btnSaveScene = document.getElementById('btn-save-scene');
     const btnLibrary = document.getElementById('btn-library');
     const btnLayers = document.getElementById('btn-layers');
-    const btnObstacles = document.getElementById('btn-obstacles');
-
-    const mapLoading = document.getElementById('map-loading');
 
     // Biblioteca
     const libraryPanel = document.getElementById('library-panel');
@@ -615,22 +484,15 @@
     const librarySearch = document.getElementById('library-search');
     const libraryCount = document.getElementById('library-count');
     let libraryTab = "maps";
-    const library = { maps: [], players: [], assets: [] };
+    const library = {
+      maps: [],
+      players: [],
+      assets: []
+    };
 
     // Camadas
     const layersPanel = document.getElementById('layers-panel');
     const layersList = document.getElementById('layers-list');
-
-    // Obstáculos
-    const obPanel = document.getElementById('ob-panel');
-    const obList = document.getElementById('ob-list');
-    const obstaclesLayer = document.getElementById('obstacles-layer');
-    const obstaclesSvg = document.getElementById('obstacles-svg');
-    const obstaclesHit = document.getElementById('obstacles-hit');
-
-    let obEditing = false;
-    let obMode = "wall"; // wall | door | select
-    let obSnap = true;
 
     // ===== CAMERA =====
     let scale = 1;
@@ -652,11 +514,6 @@
     let myId = null;
     let isHost = false;
 
-    // Online melhorado: heartbeats e resync
-    let lastHostSeenAt = 0;
-    let heartbeatTimer = null;
-    let resyncTimer = null;
-
     const PEER_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -666,9 +523,11 @@
     };
 
     // ===== SISTEMA DE CAMADAS =====
+    // layer 0 = mapa. tokens >= 1
+    // visibilidade/lock por layer (host define e sincroniza)
     const layerState = {
       visible: {}, // layer -> bool
-      locked: {},  // layer -> bool
+      locked: {},  // layer -> bool (impede mover/editar)
     };
 
     function ensureLayerDefaults(layer){
@@ -678,6 +537,8 @@
     }
 
     function computeTokenZIndex(layer){
+      // mapa fica fixo no 5. grid 6.
+      // tokens começam em 100, e cada layer soma 10
       const base = 100;
       const l = Number(layer || 1);
       return base + (l * 10);
@@ -703,6 +564,7 @@
 
       const layers = new Set();
       Object.values(state.tokens).forEach(t => layers.add(Number(t.layer || 1)));
+      // sempre listar 1..max
       const maxLayer = layers.size ? Math.max(...Array.from(layers)) : 3;
 
       layersList.innerHTML = "";
@@ -753,9 +615,8 @@
 
     // ===== ESTADO (Host autoritativo) =====
     const state = {
-      map: { src:null, locked:false, x:0, y:0 },
-      tokens: {},
-      obstacles: [] // {id, kind:"wall"|"door", x,y,w,h, open:false}
+      map: { src:null, locked:false, x:0, y:0 }, // x/y = offset do mapa dentro do canvas
+      tokens: {} // id -> props
     };
 
     // ===== UI =====
@@ -780,15 +641,9 @@
       btnSaveScene.style.display = isHost ? "" : "none";
       btnLibrary.style.display = isHost ? "" : "none";
       btnLayers.style.display = isHost ? "" : "none";
-      btnObstacles.style.display = isHost ? "" : "none";
-
       scenePanel.style.display = isHost ? "" : "none";
       layersPanel.style.display = isHost ? "" : "none";
       libraryPanel.style.display = isHost ? "" : "none";
-      obPanel.style.display = isHost ? "" : "none";
-
-      // Player pode abrir o painel de rede e clicar resync
-      document.getElementById('btn-resync').style.display = isHost ? "" : "";
     }
 
     // ===== Convite =====
@@ -892,6 +747,7 @@
           mapVel.vx = 0; mapVel.vy = 0;
           stopMapInertia();
 
+          // sync final
           if (isHost){
             const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
             applyAction(action,false);
@@ -909,8 +765,9 @@
     }
 
     function setupMapDrag(){
+      // pega a IMG atual quando existir
       mapContainer.addEventListener('mousedown', (e)=>{
-        if (!isHost) return;
+        if (!isHost) return;            // só host move mapa
         if (state.map.locked) return;
         const img = mapContainer.querySelector('img');
         if (!img) return;
@@ -930,7 +787,7 @@
         const onMove = (me) => {
           if (!mapDragging) return;
 
-          const dx = (me.clientX - mapDragStart.mx) / scale;
+          const dx = (me.clientX - mapDragStart.mx) / scale; // compensar zoom do canvas
           const dy = (me.clientY - mapDragStart.my) / scale;
 
           const nx = mapDragStart.x + dx;
@@ -939,7 +796,7 @@
 
           const now = performance.now();
           const dt = Math.max(1, now - mapLastMove.t);
-          mapVel.vx = (nx - mapLastMove.x) / dt * 16;
+          mapVel.vx = (nx - mapLastMove.x) / dt * 16; // normaliza ~60fps
           mapVel.vy = (ny - mapLastMove.y) / dt * 16;
           mapLastMove = { t: now, x: nx, y: ny };
         };
@@ -950,8 +807,10 @@
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
 
+          // começa inércia
           startMapInertia();
 
+          // sync imediato também (pra sensação de “pegou”)
           const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
           applyAction(action,false);
           broadcastACT(action);
@@ -963,40 +822,25 @@
     }
     setupMapDrag();
 
-    function showMapLoading(on){
-      mapLoading.classList.toggle('show', !!on);
-    }
-
     function applyMapLocal(src, emit){
-      showMapLoading(true);
-
       const img = new Image();
       img.onload = () => {
         mapContainer.innerHTML = "";
         mapContainer.appendChild(img);
 
+        // Ao trocar mapa, centraliza câmera mas mantém offset do mapa em 0,0 (host pode mover depois)
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
         posX = window.innerWidth/2 - (img.width * scale)/2;
         posY = window.innerHeight/2 - (img.height * scale)/2;
         updateTransform();
 
         setMapOffset(state.map.x || 0, state.map.y || 0);
-        showMapLoading(false);
-
-        // Força um repaint leve (ajuda alguns browsers a “mostrar” tudo imediatamente)
-        requestAnimationFrame(()=>{ canvas.style.willChange = "transform"; });
-        setTimeout(()=>{ canvas.style.willChange = ""; }, 120);
-      };
-      img.onerror = () => {
-        showMapLoading(false);
-        alert("Falha ao carregar o mapa. Verifique o link / CORS / imagem direta.");
       };
       img.src = src;
 
       if (emit){
         if (!isHost) return;
-        // manda SET atômico pra reduzir “sumir até mexer”
-        const action = { type:"MAP_SET", src, locked: !!state.map.locked, x: state.map.x, y: state.map.y };
+        const action = { type:"MAP_UPDATE", src };
         applyAction(action,false);
         broadcastACT(action);
       }
@@ -1011,7 +855,7 @@
         id,
         src,
         type,
-        kind: p.kind ?? "asset",
+        kind: p.kind ?? "asset",        // "player" | "asset"
         layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
@@ -1034,6 +878,7 @@
       let width = isImg ? 160 : 400;
       let height = isImg ? 160 : 225;
 
+      // defaults por tipo
       const layerDefault = (kind === "player") ? 3 : 2;
 
       const centerX = (window.innerWidth/2 - posX)/scale;
@@ -1113,8 +958,6 @@
       if (contentType === "image"){
         content = document.createElement('img');
         content.src = src;
-        // melhora: quando carrega, força reflow leve pra aparecer sem “mexer”
-        content.onload = () => requestAnimationFrame(()=>{ token.style.transform = "translateZ(0)"; setTimeout(()=>token.style.transform="", 50); });
       } else {
         content = document.createElement('iframe');
         content.src = src;
@@ -1151,6 +994,7 @@
 
       setTimeout(()=>updateImgTransform(token),10);
 
+      // layer visibility
       const vis = !!layerState.visible[layer];
       token.style.display = vis ? "" : "none";
 
@@ -1158,6 +1002,7 @@
       token.addEventListener('wheel',(e)=>{
         if (!e.ctrlKey) return;
         if (token.dataset.locked === "true") return;
+        // trava por layer?
         if (layerState.locked[Number(token.dataset.layer||2)]) return;
 
         e.preventDefault(); e.stopPropagation();
@@ -1210,11 +1055,11 @@
         document.addEventListener('mouseup',onUp);
       });
 
-      // drag token (com física)
+      // drag token
       token.addEventListener('mousedown',(e)=>{
         if (e.button!==0 || e.altKey) return;
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||2)]) return;
+        if (layerState.locked[Number(token.dataset.layer||2)]) return; // layer trancada
         e.stopPropagation();
         selectToken(token);
         startDraggingToken(e, token);
@@ -1240,89 +1085,22 @@
       selectedToken.classList.add('selected');
     }
 
-    // ===== FÍSICA / COLISÃO (tokens vs paredes/portas fechadas) =====
-    function getSolidObstacles(){
-      // portas abertas NÃO colidem
-      return (state.obstacles || []).filter(o=>{
-        if (o.kind === "door") return !o.open;
-        return true;
-      });
-    }
-
-    function rectsOverlap(a,b){
-      return !(a.x+a.w <= b.x || a.x >= b.x+b.w || a.y+a.h <= b.y || a.y >= b.y+b.h);
-    }
-
-    function resolveRectCollision(movingRect, solidRects){
-      // empurra para fora usando menor sobreposição, iterativo pra múltiplas colisões
-      let r = {...movingRect};
-      const maxIters = 8;
-
-      for (let iter=0; iter<maxIters; iter++){
-        let collided = false;
-
-        for (const o of solidRects){
-          const b = {x:o.x, y:o.y, w:o.w, h:o.h};
-          if (!rectsOverlap(r,b)) continue;
-
-          collided = true;
-
-          const left = (r.x + r.w) - b.x;
-          const right = (b.x + b.w) - r.x;
-          const top = (r.y + r.h) - b.y;
-          const bottom = (b.y + b.h) - r.y;
-
-          const minX = Math.min(left, right);
-          const minY = Math.min(top, bottom);
-
-          if (minX < minY){
-            // resolve X
-            if (left < right) r.x -= left;
-            else r.x += right;
-          } else {
-            // resolve Y
-            if (top < bottom) r.y -= top;
-            else r.y += bottom;
-          }
-        }
-
-        if (!collided) break;
-      }
-
-      return r;
-    }
-
     function startDraggingToken(e, token){
       let startX=e.clientX, startY=e.clientY;
       let initialLeft=parseFloat(token.style.left);
       let initialTop=parseFloat(token.style.top);
       let moved=false;
 
-      const w = parseInt(token.dataset.sizeW);
-      const h = parseInt(token.dataset.sizeH);
-
       function onMove(me){
         moved=true;
         let dx=(me.clientX-startX)/scale;
         let dy=(me.clientY-startY)/scale;
-
         let newX=initialLeft+dx;
         let newY=initialTop+dy;
-
         if (gridLayer.style.display !== 'none'){
           newX=Math.round(newX/50)*50;
           newY=Math.round(newY/50)*50;
         }
-
-        // Física: impede atravessar obstáculos sólidos
-        const moving = {x:newX, y:newY, w, h};
-        const solids = getSolidObstacles();
-        if (solids.length){
-          const resolved = resolveRectCollision(moving, solids);
-          newX = resolved.x;
-          newY = resolved.y;
-        }
-
         token.style.left=newX+"px";
         token.style.top=newY+"px";
       }
@@ -1573,7 +1351,6 @@
 
       if (type==="map"){
         if (!isImageUrl(url)) return alert("Mapa precisa ser imagem direta.");
-        state.map.src = url;
         applyMapLocal(url,true);
         addToLibrary("maps", url);
         document.getElementById(inputId).value="";
@@ -1606,7 +1383,6 @@
         const dataUrl=e.target.result;
 
         if (type==="map"){
-          state.map.src = dataUrl;
           applyMapLocal(dataUrl,true);
           addToLibrary("maps", dataUrl, "mapa-local");
         } else if (type==="player"){
@@ -1699,7 +1475,6 @@
         use.textContent = (libraryTab==="maps") ? "Usar" : "Add";
         use.onclick=()=>{
           if (libraryTab==="maps"){
-            state.map.src = item.src;
             applyMapLocal(item.src,true);
           } else if (libraryTab==="players"){
             hostCreateToken(item.src,"image","player");
@@ -1782,272 +1557,6 @@
       r.readAsText(file);
     }
 
-    // ===== PAREDES / PORTAS =====
-    function toggleObstaclesPanel(){
-      if (!isHost) return alert("Apenas o Host mapeia paredes/portas.");
-      obPanel.classList.toggle('show');
-      renderObstaclesList();
-    }
-
-    function setObMode(mode){
-      obMode = mode;
-      document.getElementById('ob-mode-wall').classList.toggle('active', mode==="wall");
-      document.getElementById('ob-mode-door').classList.toggle('active', mode==="door");
-      document.getElementById('ob-mode-select').classList.toggle('active', mode==="select");
-    }
-
-    function toggleObstacleSnap(){
-      obSnap = !obSnap;
-      showNotification(obSnap ? "Snap ON" : "Snap OFF");
-    }
-
-    function toggleObstacleEditing(){
-      if (!isHost) return;
-      obEditing = !obEditing;
-      obstaclesLayer.classList.toggle('editing', obEditing);
-      showNotification(obEditing ? "Modo Edição ON" : "Modo Edição OFF");
-    }
-
-    function clearObstacles(){
-      if (!isHost) return;
-      if (!confirm("Limpar todas as paredes/portas?")) return;
-      const action = { type:"OB_CLEAR" };
-      applyAction(action,false);
-      broadcastACT(action);
-      renderObstacles();
-      renderObstaclesList();
-      updateSceneSizeEstimate();
-    }
-
-    function addObstacle(kind, x,y,w,h){
-      const ob = {
-        id: generateUUID(),
-        kind,
-        x, y, w, h,
-        open: (kind==="door") ? false : false
-      };
-      const action = { type:"OB_ADD", ob };
-      applyAction(action,false);
-      broadcastACT(action);
-      renderObstacles();
-      renderObstaclesList();
-      updateSceneSizeEstimate();
-    }
-
-    function removeObstacle(id){
-      if (!isHost) return;
-      const action = { type:"OB_REMOVE", id };
-      applyAction(action,false);
-      broadcastACT(action);
-      renderObstacles();
-      renderObstaclesList();
-      updateSceneSizeEstimate();
-    }
-
-    function toggleDoor(id){
-      const ob = (state.obstacles||[]).find(o=>o.id===id);
-      if (!ob || ob.kind!=="door") return;
-      const action = { type:"OB_TOGGLE", id };
-      if (isHost){
-        applyAction(action,false);
-        broadcastACT(action);
-      } else {
-        // player pode solicitar abrir/fechar porta? (se quiser travar, comenta abaixo)
-        sendREQ(action);
-      }
-      renderObstacles();
-      renderObstaclesList();
-      updateSceneSizeEstimate();
-    }
-
-    function renderObstacles(){
-      obstaclesSvg.innerHTML = "";
-      const list = state.obstacles || [];
-
-      for (const o of list){
-        const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-        rect.setAttribute("x", o.x);
-        rect.setAttribute("y", o.y);
-        rect.setAttribute("width", o.w);
-        rect.setAttribute("height", o.h);
-
-        rect.classList.add("ob-rect");
-        rect.classList.add(o.kind === "door" ? "door" : "wall");
-        if (o.kind === "door" && o.open) rect.classList.add("open");
-
-        // Clique em porta (select ou edição) -> toggle
-        rect.style.pointerEvents = "auto";
-        rect.addEventListener('mousedown', (e)=>{
-          if (!obEditing && !isHost) return;
-          if (o.kind === "door"){
-            if (obMode==="select" || obEditing) {
-              e.stopPropagation(); e.preventDefault();
-              toggleDoor(o.id);
-            }
-          }
-        });
-
-        // click direito host remove no select
-        rect.addEventListener('contextmenu',(e)=>{
-          e.preventDefault();
-          if (!isHost) return;
-          if (obMode!=="select") return;
-          removeObstacle(o.id);
-        });
-
-        obstaclesSvg.appendChild(rect);
-
-        const label = document.createElementNS("http://www.w3.org/2000/svg","text");
-        label.setAttribute("x", o.x + 6);
-        label.setAttribute("y", o.y + 14);
-        label.classList.add("ob-label");
-        label.textContent = o.kind === "door" ? (o.open ? "Porta (aberta)" : "Porta (fechada)") : "Parede";
-        obstaclesSvg.appendChild(label);
-      }
-    }
-
-    function renderObstaclesList(){
-      if (!isHost) return;
-      obList.innerHTML = "";
-      const list = state.obstacles || [];
-
-      if (!list.length){
-        const empty = document.createElement('div');
-        empty.style.opacity = ".7";
-        empty.style.fontSize = "11px";
-        empty.style.padding = "8px 4px";
-        empty.textContent = "Nenhuma parede/porta criada.";
-        obList.appendChild(empty);
-        return;
-      }
-
-      list.slice().reverse().forEach(o=>{
-        const item = document.createElement('div');
-        item.className = "ob-item";
-
-        const left = document.createElement('div');
-        left.innerHTML = `<b style="color:var(--gold)">${o.kind==="door" ? "Porta" : "Parede"}</b>
-          <div><small>${Math.round(o.x)},${Math.round(o.y)} · ${Math.round(o.w)}x${Math.round(o.h)}</small></div>`;
-
-        const actions = document.createElement('div');
-        actions.className = "ob-actions";
-
-        if (o.kind==="door"){
-          const t = document.createElement('button');
-          t.textContent = o.open ? "Fechar" : "Abrir";
-          t.onclick = ()=>toggleDoor(o.id);
-          actions.appendChild(t);
-        }
-
-        const del = document.createElement('button');
-        del.textContent = "Remover";
-        del.onclick = ()=>removeObstacle(o.id);
-        actions.appendChild(del);
-
-        item.appendChild(left);
-        item.appendChild(actions);
-        obList.appendChild(item);
-      });
-    }
-
-    // desenhar retângulo no canvas (host)
-    let drawActive = false;
-    let drawStart = {x:0,y:0};
-    let drawPreview = null;
-
-    function screenToCanvas(e){
-      // converte posição da tela para coordenadas do canvas-container (sem map offset, pois obstáculos são no canvas)
-      const cx = (e.clientX - posX)/scale;
-      const cy = (e.clientY - posY)/scale;
-      return {x:cx, y:cy};
-    }
-
-    function snap(v, step=50){
-      return Math.round(v/step)*step;
-    }
-
-    function ensurePreview(){
-      if (drawPreview) return drawPreview;
-      drawPreview = document.createElementNS("http://www.w3.org/2000/svg","rect");
-      drawPreview.classList.add("ob-rect");
-      drawPreview.setAttribute("fill","rgba(197,160,89,.12)");
-      drawPreview.setAttribute("stroke","rgba(197,160,89,.9)");
-      drawPreview.setAttribute("stroke-dasharray","6 4");
-      obstaclesSvg.appendChild(drawPreview);
-      return drawPreview;
-    }
-
-    function removePreview(){
-      if (drawPreview){
-        drawPreview.remove();
-        drawPreview = null;
-      }
-    }
-
-    obstaclesHit.addEventListener('mousedown',(e)=>{
-      if (!isHost) return;
-      if (!obEditing) return;
-      if (e.button!==0) return;
-
-      // se modo select, não desenha
-      if (obMode === "select") return;
-
-      e.preventDefault(); e.stopPropagation();
-
-      const pt = screenToCanvas(e);
-      const sx = obSnap ? snap(pt.x) : pt.x;
-      const sy = obSnap ? snap(pt.y) : pt.y;
-
-      drawActive = true;
-      drawStart = {x:sx, y:sy};
-
-      const prev = ensurePreview();
-      prev.setAttribute("x", sx);
-      prev.setAttribute("y", sy);
-      prev.setAttribute("width", 1);
-      prev.setAttribute("height", 1);
-    });
-
-    window.addEventListener('mousemove',(e)=>{
-      if (!drawActive) return;
-      const pt = screenToCanvas(e);
-      const ex = obSnap ? snap(pt.x) : pt.x;
-      const ey = obSnap ? snap(pt.y) : pt.y;
-
-      const x = Math.min(drawStart.x, ex);
-      const y = Math.min(drawStart.y, ey);
-      const w = Math.max(1, Math.abs(ex - drawStart.x));
-      const h = Math.max(1, Math.abs(ey - drawStart.y));
-
-      const prev = ensurePreview();
-      prev.setAttribute("x", x);
-      prev.setAttribute("y", y);
-      prev.setAttribute("width", w);
-      prev.setAttribute("height", h);
-    });
-
-    window.addEventListener('mouseup',(e)=>{
-      if (!drawActive) return;
-      drawActive = false;
-
-      const prev = drawPreview;
-      if (!prev){ return; }
-
-      const x = parseFloat(prev.getAttribute("x"));
-      const y = parseFloat(prev.getAttribute("y"));
-      const w = parseFloat(prev.getAttribute("width"));
-      const h = parseFloat(prev.getAttribute("height"));
-
-      removePreview();
-
-      // mínimo pra evitar “cliques”
-      if (w < 20 || h < 20) return;
-
-      const forcedDoor = e.shiftKey;
-      const kind = forcedDoor ? "door" : (obMode === "door" ? "door" : "wall");
-      addObstacle(kind, x,y,w,h);
-    });
-
     // ===== CENAS (SAVE/LOAD) =====
     function openScenePanel(){
       if (!isHost) return alert("Apenas o Host.");
@@ -2078,12 +1587,11 @@
     function updateSceneSizeEstimate(){
       if (!isHost) return;
       const payload={
-        version:5,
+        version:4,
         savedAt:new Date().toISOString(),
         map: state.map,
         tokens: state.tokens,
-        layerState,
-        obstacles: state.obstacles
+        layerState
       };
       const bytes=estimatePayloadSizeBytes(payload);
       document.getElementById('scene-size').textContent = `~ ${prettyBytes(bytes)}`;
@@ -2162,14 +1670,14 @@
       const quality = parseFloat(document.getElementById('quality')?.value || "0.75");
 
       const payload = {
-        version:5,
+        version:4,
         savedAt:new Date().toISOString(),
         map: JSON.parse(JSON.stringify(state.map)),
         tokens: JSON.parse(JSON.stringify(state.tokens)),
-        layerState: JSON.parse(JSON.stringify(layerState)),
-        obstacles: JSON.parse(JSON.stringify(state.obstacles))
+        layerState: JSON.parse(JSON.stringify(layerState))
       };
 
+      // map src
       if (payload.map?.src){
         if (embedRemote && payload.map.src.startsWith("http")){
           const du = await tryFetchAsDataURL(payload.map.src);
@@ -2180,6 +1688,7 @@
         }
       }
 
+      // tokens
       for (const id of Object.keys(payload.tokens)){
         const t = payload.tokens[id];
         if (!t?.src) continue;
@@ -2221,30 +1730,30 @@
       if (!isHost) return;
       if (!payload || typeof payload!=="object") return alert("Cena inválida.");
 
+      // limpar
       const clear = { type:"CLEAR" };
       applyAction(clear,false); broadcastACT(clear);
 
+      // layer state
       if (payload.layerState){
+        // substitui
         layerState.visible = payload.layerState.visible || {};
         layerState.locked = payload.layerState.locked || {};
       }
 
-      // obstáculos
-      state.obstacles = Array.isArray(payload.obstacles) ? payload.obstacles : [];
-      const obSync = { type:"OB_BULK_SET", obstacles: state.obstacles };
-      applyAction(obSync,false); broadcastACT(obSync);
-
+      // map
       const map = payload.map || {src:null,locked:false,x:0,y:0};
       if (map.src){
-        const a = { type:"MAP_SET", src: map.src, locked: !!map.locked, x: Number(map.x||0), y: Number(map.y||0) };
+        const a = { type:"MAP_UPDATE", src: map.src };
         applyAction(a,false); broadcastACT(a);
-      } else {
-        const lockA = { type:"MAP_LOCK", locked: !!map.locked };
-        applyAction(lockA,false); broadcastACT(lockA);
-        const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
-        applyAction(moveA,false); broadcastACT(moveA);
       }
+      const lockA = { type:"MAP_LOCK", locked: !!map.locked };
+      applyAction(lockA,false); broadcastACT(lockA);
 
+      const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
+      applyAction(moveA,false); broadcastACT(moveA);
+
+      // tokens
       const tokens = payload.tokens || {};
       for (const id of Object.keys(tokens)){
         const t = tokens[id];
@@ -2269,8 +1778,6 @@
 
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
-      renderObstacles();
-      renderObstaclesList();
       showNotification("Cena carregada!");
       updateSceneSizeEstimate();
     }
@@ -2288,6 +1795,20 @@
         event.target.value="";
       };
       r.readAsText(file);
+    }
+
+    function initSceneUIHooks(){
+      const q=document.getElementById('quality');
+      const md=document.getElementById('max-dim');
+      const ci=document.getElementById('compress-images');
+      const er=document.getElementById('embed-remote');
+      q?.addEventListener('input', updateQualityLabel);
+      q?.addEventListener('change', updateSceneSizeEstimate);
+      md?.addEventListener('change', updateSceneSizeEstimate);
+      ci?.addEventListener('change', updateSceneSizeEstimate);
+      er?.addEventListener('change', updateSceneSizeEstimate);
+      updateQualityLabel();
+      updateSceneSizeEstimate();
     }
 
     // ===== CLEAR / UNLOCK =====
@@ -2332,82 +1853,21 @@
       conn.send({kind:"SYNC", sender:myId, state, layerState});
     }
 
-    function forceResync(){
-      if (isHost){
-        // host: reenviar SYNC pra todos
-        connections.forEach(c=>{ if(c.open) sendSYNC(c); });
-        showNotification("SYNC reenviado!");
-        return;
-      }
-      if (hostConnection?.open){
-        hostConnection.send({kind:"NEED_SYNC", sender:myId});
-        showNotification("Pedindo SYNC...");
-      }
-    }
-
     function handleNetworkData(data, connPeerId=null){
       if (!data?.kind) return;
 
       if (data.kind==="SYNC"){
-        lastHostSeenAt = Date.now();
         applyFullSync(data.state, data.layerState);
-        // confirma recebimento (ajuda host a reenviar se necessário)
-        if (!isHost && hostConnection?.open){
-          hostConnection.send({kind:"ACK_SYNC", sender:myId});
-        }
         return;
       }
-
       if (data.kind==="ACT"){
-        lastHostSeenAt = Date.now();
         applyAction(data.action,true);
         return;
       }
-
       if (data.kind==="REQ"){
         if (!isHost) return;
         const sender=data.sender || connPeerId || "unknown";
         applyHostAuthorizedAction(data.action,{sender});
-        return;
-      }
-
-      // NOVO: handshake e resync
-      if (data.kind==="HELLO"){
-        if (!isHost) return;
-        // envia SYNC após um pequeno atraso pra reduzir “às vezes não aparece”
-        const conn = connections.find(c=>c.peer===data.sender) || null;
-        if (conn?.open){
-          setTimeout(()=>sendSYNC(conn), 120);
-        }
-        return;
-      }
-
-      if (data.kind==="NEED_SYNC"){
-        if (!isHost) return;
-        const conn = connections.find(c=>c.peer===data.sender) || null;
-        if (conn?.open){
-          sendSYNC(conn);
-        }
-        return;
-      }
-
-      if (data.kind==="PING"){
-        if (isHost){
-          // host responde com PONG
-          const conn = connections.find(c=>c.peer===data.sender) || null;
-          conn?.open && conn.send({kind:"PONG", sender:myId});
-        }
-        return;
-      }
-
-      if (data.kind==="PONG"){
-        lastHostSeenAt = Date.now();
-        return;
-      }
-
-      if (data.kind==="ACK_SYNC"){
-        // opcional: poderia marcar “ok”
-        return;
       }
     }
 
@@ -2415,16 +1875,9 @@
     function validateClientAction(action){
       if (!action?.type) return {ok:false,reason:"Ação inválida"};
 
-      // allow: MOVE, UPDATE_PROP, OB_TOGGLE (opcional)
-      const allowed = new Set(["MOVE","UPDATE_PROP","OB_TOGGLE"]);
+      // allow: MOVE, UPDATE_PROP (somente tokens destravados e layer não trancada e visível)
+      const allowed = new Set(["MOVE","UPDATE_PROP"]);
       if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
-
-      if (action.type==="OB_TOGGLE"){
-        // permitir players abrirem portas? (se não quiser, bloqueia aqui)
-        const ob = (state.obstacles||[]).find(o=>o.id===action.id);
-        if (!ob || ob.kind!=="door") return {ok:false,reason:"Porta inválida"};
-        return {ok:true};
-      }
 
       const id=action.id;
       if (!id || !state.tokens[id]) return {ok:false,reason:"Token inexistente"};
@@ -2457,24 +1910,10 @@
         if (action.prop==="layer"){
           const l=Number(action.value);
           if(!Number.isFinite(l)||l<1||l>50) return {ok:false,reason:"Layer inválida"};
+          // opcional: impedir player de trocar layer (se quiser)
+          // return {ok:false,reason:"Player não muda layer"};
         }
       }
-
-      // física server-side: garante que MOVE não atravesse obstáculos
-      if (action.type==="MOVE"){
-        const x=parseFloat(action.x||"0");
-        const y=parseFloat(action.y||"0");
-        const w=Number(tok.w||140);
-        const h=Number(tok.h||140);
-
-        const solids = getSolidObstacles();
-        if (solids.length){
-          const resolved = resolveRectCollision({x,y,w,h}, solids);
-          action.x = resolved.x + "px";
-          action.y = resolved.y + "px";
-        }
-      }
-
       return {ok:true};
     }
 
@@ -2492,6 +1931,7 @@
     function applyAction(action, fromNetwork){
       switch(action.type){
         case "CLEAR":{
+          // limpa DOM
           document.querySelectorAll('.token').forEach(t=>t.remove());
           mapContainer.innerHTML="";
           document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
@@ -2499,35 +1939,23 @@
           stopMapInertia();
           mapDragging=false;
 
+          // limpa estado
           state.map={src:null,locked:false,x:0,y:0};
           state.tokens={};
-          state.obstacles=[];
 
+          // layerState não zera (mantém preferências), mas pode se quiser:
+          // layerState.visible={}, layerState.locked={}
           setMapLockLocal(false,false);
           setMapOffset(0,0);
 
-          renderObstacles();
-          renderObstaclesList();
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
           break;
         }
 
-        case "MAP_SET":{
-          // atômico: src + locked + pos
-          state.map.src = action.src ?? null;
-          if (typeof action.locked !== "undefined") state.map.locked = !!action.locked;
-          if (typeof action.x !== "undefined") state.map.x = Number(action.x||0);
-          if (typeof action.y !== "undefined") state.map.y = Number(action.y||0);
-
-          if (state.map.src) applyMapLocal(state.map.src,false);
-          setMapLockLocal(!!state.map.locked,false);
-          setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
-          break;
-        }
-
         case "MAP_UPDATE":{
           state.map.src = action.src;
+          // ao atualizar mapa, mantém offsets atuais
           applyMapLocal(action.src,false);
           break;
         }
@@ -2546,7 +1974,8 @@
         case "CREATE_TOKEN":{
           const {id, src, contentType, props} = action;
           addTokenLocal(src, contentType, id, props);
-          state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          if (isHost) state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          else state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
           break;
@@ -2602,50 +2031,6 @@
           rebuildLayersPanel();
           break;
         }
-
-        // Obstáculos
-        case "OB_ADD":{
-          const ob = action.ob;
-          if (!ob?.id) break;
-          state.obstacles = Array.isArray(state.obstacles) ? state.obstacles : [];
-          state.obstacles.push({
-            id: ob.id,
-            kind: ob.kind==="door" ? "door" : "wall",
-            x: Number(ob.x||0), y: Number(ob.y||0),
-            w: Number(ob.w||50), h: Number(ob.h||50),
-            open: !!ob.open
-          });
-          renderObstacles();
-          break;
-        }
-
-        case "OB_REMOVE":{
-          state.obstacles = (state.obstacles||[]).filter(o=>o.id!==action.id);
-          renderObstacles();
-          break;
-        }
-
-        case "OB_CLEAR":{
-          state.obstacles = [];
-          renderObstacles();
-          break;
-        }
-
-        case "OB_TOGGLE":{
-          const id = action.id;
-          const ob = (state.obstacles||[]).find(o=>o.id===id);
-          if (ob && ob.kind==="door"){
-            ob.open = !ob.open;
-          }
-          renderObstacles();
-          break;
-        }
-
-        case "OB_BULK_SET":{
-          state.obstacles = Array.isArray(action.obstacles) ? action.obstacles : [];
-          renderObstacles();
-          break;
-        }
       }
       if (isHost) updateSceneSizeEstimate();
     }
@@ -2670,10 +2055,6 @@
         setMapOffset(Number(state.map.x||0), Number(state.map.y||0));
       }
 
-      // obstáculos
-      state.obstacles = Array.isArray(s?.obstacles) ? JSON.parse(JSON.stringify(s.obstacles)) : [];
-      renderObstacles();
-
       state.tokens = {};
       const tokens = s?.tokens || {};
       for (const id of Object.keys(tokens)){
@@ -2686,12 +2067,6 @@
       applyLayerVisibilityToDOM();
       rebuildLayersPanel();
       updateSceneSizeEstimate();
-
-      // segurança: se por algum motivo não renderizou, tenta re-render após curto delay
-      setTimeout(()=>{
-        renderObstacles();
-        applyLayerVisibilityToDOM();
-      }, 180);
     }
 
     // ===== PeerJS setup =====
@@ -2723,18 +2098,10 @@
           peer.on('connection',(conn)=>{
             connections.push(conn);
             setupConnection(conn);
-
-            conn.on('open',()=>{
-              // envia SYNC e também agenda um reforço
-              sendSYNC(conn);
-              setTimeout(()=>sendSYNC(conn), 250);
-            });
-
+            conn.on('open',()=>setTimeout(()=>sendSYNC(conn),200));
             conn.on('close',()=>{connections=connections.filter(c=>c!==conn);});
           });
         }
-
-        startHeartbeat();
       });
 
       peer.on('error',(err)=>{
@@ -2753,13 +2120,6 @@
         statusText.innerText="Conectado";
         tinyStatus.textContent="Conectado";
         statusDot.classList.add('online');
-
-        // NOVO: handshake
-        hostConnection.send({kind:"HELLO", sender:myId});
-
-        // resync de segurança (caso mensagens iniciais se percam)
-        setTimeout(()=>forceResync(), 600);
-        setTimeout(()=>forceResync(), 1400);
       });
 
       hostConnection.on('close',()=>{
@@ -2774,43 +2134,11 @@
       conn.on('data',(data)=>handleNetworkData(data, conn.peer));
     }
 
-    function startHeartbeat(){
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      if (resyncTimer) clearInterval(resyncTimer);
+    // ===== Players / Assets: constraints =====
+    // (por enquanto o player só move o que está destravado e layer livre/visível; host manda tudo)
 
-      // ping/pong simples pra detectar host “travado”
-      heartbeatTimer = setInterval(()=>{
-        if (isHost){
-          // host: manda ACT "noop" ? não precisa, mas pode pingar clientes
-          // aqui só mantém “online”
-        } else {
-          if (hostConnection?.open){
-            hostConnection.send({kind:"PING", sender:myId});
-          }
-        }
-      }, 2000);
-
-      // se ficar muito tempo sem host, tenta resync
-      resyncTimer = setInterval(()=>{
-        if (isHost) return;
-        const now = Date.now();
-        if (!lastHostSeenAt) lastHostSeenAt = now;
-        const silentMs = now - lastHostSeenAt;
-
-        // se passou 6s sem ver host, pede sync
-        if (silentMs > 6000){
-          forceResync();
-          lastHostSeenAt = now; // evita spam
-        }
-
-        // também: se tokens no DOM < tokens do estado, pede sync
-        const domTokens = document.querySelectorAll('.token').length;
-        const stTokens = Object.keys(state.tokens||{}).length;
-        if (stTokens && domTokens < stTokens){
-          forceResync();
-        }
-      }, 3500);
-    }
+    // ===== Map: Host também sync posição quando solta =====
+    // (já fazemos MAP_MOVE ao soltar e no final da inércia)
 
     // ===== Scene UI hooks =====
     function initUI(){
@@ -2822,9 +2150,6 @@
       document.getElementById('embed-remote')?.addEventListener('change',updateSceneSizeEstimate);
       updateQualityLabel();
       updateSceneSizeEstimate();
-
-      // Obstáculos inicia render
-      renderObstacles();
     }
 
     // ===== Context menu off =====
@@ -2836,4 +2161,3 @@
   </script>
 </body>
 </html>
-
