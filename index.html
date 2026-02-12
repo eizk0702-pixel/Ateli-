@@ -28,7 +28,7 @@
     #map-container{
       position:absolute;top:0;left:0;
       z-index:5;
-      pointer-events:auto; /* agora é “palpável” */
+      pointer-events:auto;
       transform: translate(0px,0px);
       transform-origin: 0 0;
     }
@@ -70,7 +70,7 @@
 
     .token iframe,.token img{
       width:100%;height:100%;border:none;background:transparent;pointer-events:none;
-      object-fit:contain; /* evita “cortar” */
+      object-fit:contain;
       transition:transform .2s ease-out;
     }
 
@@ -189,7 +189,7 @@
     }
     #role-badge b{color:var(--gold);}
 
-    /* BIBLIOTECA (Assets/Players/Mapas) */
+    /* BIBLIOTECA */
     .library-panel{
       position:fixed;top:170px;right:20px;z-index:1200;width:380px;max-height:560px;
       background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
@@ -232,7 +232,7 @@
     }
     .asset-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
 
-    /* GERENCIADOR DE CAMADAS */
+    /* CAMADAS */
     .layers-panel{
       position:fixed;top:230px;left:50%;transform:translateX(-50%);
       z-index:1200;min-width:360px;max-width:520px;
@@ -431,10 +431,10 @@
 
   <script>
     /********************************************************************
-     * ✅ MELHORIAS PEDIDAS
-     * - MAPA palpável: arrasta + inércia (“física”) + sync em rede + salva/recupera posição
-     * - SISTEMA DE CAMADAS: mapa sempre layer 0; tokens têm layer >= 1; visibilidade/lock por layer
-     * - BIBLIOTECA/ASSETS: separa Mapas / Players / Assets (tudo que não é player nem mapa)
+     * ✅ ONLINE REFEITO/OTIMIZADO (sem reescrever teu app inteiro):
+     * - Chunking de mensagens grandes (SYNC/ACT com base64) -> evita “player não vê elementos”
+     * - HELLO->SYNC redundante no connect
+     * - Compressão automática de import local (WebP) -> reduz payload na rede
      ********************************************************************/
 
     // ===== UTIL =====
@@ -484,11 +484,7 @@
     const librarySearch = document.getElementById('library-search');
     const libraryCount = document.getElementById('library-count');
     let libraryTab = "maps";
-    const library = {
-      maps: [],
-      players: [],
-      assets: []
-    };
+    const library = { maps: [], players: [], assets: [] };
 
     // Camadas
     const layersPanel = document.getElementById('layers-panel');
@@ -522,13 +518,97 @@
       ]
     };
 
+    // ======= ✅ CHUNKING (o coração da correção) =======
+    const NET_CHUNK_SIZE = 12000; // ~12KB por pedaço (seguro pro DataChannel)
+    const chunkInbox = new Map(); // msgId -> { total, parts:[], ts }
+    const CHUNK_TTL_MS = 15000;
+
+    function nowMs(){ return performance.now(); }
+
+    function gcChunks(){
+      const t = nowMs();
+      for (const [k,v] of chunkInbox.entries()){
+        if ((t - (v.ts||0)) > CHUNK_TTL_MS) chunkInbox.delete(k);
+      }
+    }
+
+    function safeJsonStringify(obj){
+      try { return JSON.stringify(obj); }
+      catch { return null; }
+    }
+
+    function safeJsonParse(str){
+      try { return JSON.parse(str); }
+      catch { return null; }
+    }
+
+    function sendNet(conn, obj){
+      if (!conn?.open) return;
+      const json = safeJsonStringify(obj);
+      if (!json) return;
+
+      // pequeno? manda direto.
+      if (json.length <= NET_CHUNK_SIZE){
+        try { conn.send(obj); } catch(e){ console.warn("send fail", e); }
+        return;
+      }
+
+      // grande? chunk.
+      const msgId = generateUUID();
+      const total = Math.ceil(json.length / NET_CHUNK_SIZE);
+
+      for (let i=0;i<total;i++){
+        const part = json.slice(i*NET_CHUNK_SIZE, (i+1)*NET_CHUNK_SIZE);
+        const packet = { kind:"CHUNK", msgId, index:i, total, part };
+        try { conn.send(packet); } catch(e){ console.warn("chunk send fail", e); break; }
+      }
+    }
+
+    function broadcastNet(obj){
+      if (!isHost) return;
+      connections.forEach(c=>sendNet(c, obj));
+    }
+
+    function onNetData(data, connPeerId=null){
+      gcChunks();
+
+      // Alguns ambientes entregam string, então tenta.
+      if (typeof data === "string"){
+        const parsed = safeJsonParse(data);
+        if (parsed) data = parsed;
+        else return;
+      }
+
+      if (!data?.kind) return;
+
+      if (data.kind === "CHUNK"){
+        const { msgId, index, total, part } = data;
+        if (!msgId || !Number.isFinite(index) || !Number.isFinite(total) || typeof part !== "string") return;
+
+        let entry = chunkInbox.get(msgId);
+        if (!entry){
+          entry = { total, parts: new Array(total), ts: nowMs() };
+          chunkInbox.set(msgId, entry);
+        }
+        entry.ts = nowMs();
+        if (entry.total !== total) { chunkInbox.delete(msgId); return; }
+        entry.parts[index] = part;
+
+        // completo?
+        if (entry.parts.every(p => typeof p === "string")){
+          const full = entry.parts.join("");
+          chunkInbox.delete(msgId);
+          const parsed = safeJsonParse(full);
+          if (parsed) handleNetworkData(parsed, connPeerId);
+        }
+        return;
+      }
+
+      handleNetworkData(data, connPeerId);
+    }
+
     // ===== SISTEMA DE CAMADAS =====
-    // layer 0 = mapa. tokens >= 1
-    // visibilidade/lock por layer (host define e sincroniza)
-    const layerState = {
-      visible: {}, // layer -> bool
-      locked: {},  // layer -> bool (impede mover/editar)
-    };
+    const layerState = { visible: {}, locked: {} };
 
     function ensureLayerDefaults(layer){
       if (layer == null) return;
@@ -537,8 +617,6 @@
     }
 
     function computeTokenZIndex(layer){
-      // mapa fica fixo no 5. grid 6.
-      // tokens começam em 100, e cada layer soma 10
       const base = 100;
       const l = Number(layer || 1);
       return base + (l * 10);
@@ -564,7 +642,6 @@
 
       const layers = new Set();
       Object.values(state.tokens).forEach(t => layers.add(Number(t.layer || 1)));
-      // sempre listar 1..max
       const maxLayer = layers.size ? Math.max(...Array.from(layers)) : 3;
 
       layersList.innerHTML = "";
@@ -615,8 +692,8 @@
 
     // ===== ESTADO (Host autoritativo) =====
     const state = {
-      map: { src:null, locked:false, x:0, y:0 }, // x/y = offset do mapa dentro do canvas
-      tokens: {} // id -> props
+      map: { src:null, locked:false, x:0, y:0 },
+      tokens: {}
     };
 
     // ===== UI =====
@@ -747,7 +824,6 @@
           mapVel.vx = 0; mapVel.vy = 0;
           stopMapInertia();
 
-          // sync final
           if (isHost){
             const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
             applyAction(action,false);
@@ -757,7 +833,6 @@
         }
 
         setMapOffset(state.map.x + mapVel.vx, state.map.y + mapVel.vy);
-
         mapInertiaRAF = requestAnimationFrame(step);
       };
 
@@ -765,9 +840,8 @@
     }
 
     function setupMapDrag(){
-      // pega a IMG atual quando existir
       mapContainer.addEventListener('mousedown', (e)=>{
-        if (!isHost) return;            // só host move mapa
+        if (!isHost) return;
         if (state.map.locked) return;
         const img = mapContainer.querySelector('img');
         if (!img) return;
@@ -787,7 +861,7 @@
         const onMove = (me) => {
           if (!mapDragging) return;
 
-          const dx = (me.clientX - mapDragStart.mx) / scale; // compensar zoom do canvas
+          const dx = (me.clientX - mapDragStart.mx) / scale;
           const dy = (me.clientY - mapDragStart.my) / scale;
 
           const nx = mapDragStart.x + dx;
@@ -796,7 +870,7 @@
 
           const now = performance.now();
           const dt = Math.max(1, now - mapLastMove.t);
-          mapVel.vx = (nx - mapLastMove.x) / dt * 16; // normaliza ~60fps
+          mapVel.vx = (nx - mapLastMove.x) / dt * 16;
           mapVel.vy = (ny - mapLastMove.y) / dt * 16;
           mapLastMove = { t: now, x: nx, y: ny };
         };
@@ -807,10 +881,8 @@
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
 
-          // começa inércia
           startMapInertia();
 
-          // sync imediato também (pra sensação de “pegou”)
           const action = { type:"MAP_MOVE", x: state.map.x, y: state.map.y };
           applyAction(action,false);
           broadcastACT(action);
@@ -828,7 +900,6 @@
         mapContainer.innerHTML = "";
         mapContainer.appendChild(img);
 
-        // Ao trocar mapa, centraliza câmera mas mantém offset do mapa em 0,0 (host pode mover depois)
         scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height, 1) * 0.8;
         posX = window.innerWidth/2 - (img.width * scale)/2;
         posY = window.innerHeight/2 - (img.height * scale)/2;
@@ -855,7 +926,7 @@
         id,
         src,
         type,
-        kind: p.kind ?? "asset",        // "player" | "asset"
+        kind: p.kind ?? "asset",
         layer,
         x: p.x ?? "0px",
         y: p.y ?? "0px",
@@ -878,7 +949,6 @@
       let width = isImg ? 160 : 400;
       let height = isImg ? 160 : 225;
 
-      // defaults por tipo
       const layerDefault = (kind === "player") ? 3 : 2;
 
       const centerX = (window.innerWidth/2 - posX)/scale;
@@ -994,15 +1064,12 @@
 
       setTimeout(()=>updateImgTransform(token),10);
 
-      // layer visibility
       const vis = !!layerState.visible[layer];
       token.style.display = vis ? "" : "none";
 
-      // resize via ctrl+wheel
       token.addEventListener('wheel',(e)=>{
         if (!e.ctrlKey) return;
         if (token.dataset.locked === "true") return;
-        // trava por layer?
         if (layerState.locked[Number(token.dataset.layer||2)]) return;
 
         e.preventDefault(); e.stopPropagation();
@@ -1021,7 +1088,6 @@
         updateSceneSizeEstimate();
       },{passive:false});
 
-      // resize handle drag
       handle.addEventListener('mousedown',(e)=>{
         if (token.dataset.locked === "true") return;
         if (layerState.locked[Number(token.dataset.layer||2)]) return;
@@ -1055,11 +1121,10 @@
         document.addEventListener('mouseup',onUp);
       });
 
-      // drag token
       token.addEventListener('mousedown',(e)=>{
         if (e.button!==0 || e.altKey) return;
         if (token.dataset.locked==="true") return;
-        if (layerState.locked[Number(token.dataset.layer||2)]) return; // layer trancada
+        if (layerState.locked[Number(token.dataset.layer||2)]) return;
         e.stopPropagation();
         selectToken(token);
         startDraggingToken(e, token);
@@ -1339,9 +1404,50 @@
       setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
     }
 
-    // ===== IMPORT =====
+    // ===== IMPORT + ✅ compress local =====
     function isImageUrl(url){
       return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
+    }
+
+    function byteLengthOfString(str){ return new Blob([str]).size; }
+
+    async function compressDataURLToWebP(dataUrl, maxDim, quality){
+      try{
+        const resp=await fetch(dataUrl);
+        const blob=await resp.blob();
+        if(!blob.type.startsWith("image/")) return null;
+
+        const bmp=await createImageBitmap(blob);
+        const w=bmp.width,h=bmp.height;
+        const s=Math.min(1, maxDim/Math.max(w,h));
+        const nw=Math.max(1,Math.round(w*s));
+        const nh=Math.max(1,Math.round(h*s));
+        const c=document.createElement('canvas');
+        c.width=nw; c.height=nh;
+        const ctx=c.getContext('2d',{alpha:true});
+        ctx.drawImage(bmp,0,0,nw,nh);
+        const outBlob=await new Promise(res=>c.toBlob(res,"image/webp",quality));
+        if(!outBlob) return null;
+
+        return await new Promise((resolve,reject)=>{
+          const r=new FileReader();
+          r.onload=()=>resolve(r.result);
+          r.onerror=reject;
+          r.readAsDataURL(outBlob);
+        });
+      }catch{
+        return null;
+      }
+    }
+
+    async function maybeCompressLocalDataUrl(dataUrl){
+      // heurística: se for grande, comprime
+      const bytes = byteLengthOfString(dataUrl);
+      if (bytes < 450000) return dataUrl; // < ~450KB deixa
+      const maxDim = parseInt(document.getElementById('max-dim')?.value || "2048", 10);
+      const quality = parseFloat(document.getElementById('quality')?.value || "0.78");
+      const webp = await compressDataURLToWebP(dataUrl, maxDim, quality);
+      return webp || dataUrl;
     }
 
     function importFromUrl(inputId, type){
@@ -1373,14 +1479,17 @@
       updateSceneSizeEstimate();
     }
 
-    function importAsset(event, type){
+    async function importAsset(event, type){
       if (!isHost) return alert("Apenas o Host importa.");
       const file=event.target.files?.[0];
       if (!file) return;
 
       const reader=new FileReader();
-      reader.onload=(e)=>{
-        const dataUrl=e.target.result;
+      reader.onload=async (e)=>{
+        let dataUrl=e.target.result;
+
+        // ✅ compress local antes de mandar pra rede
+        dataUrl = await maybeCompressLocalDataUrl(dataUrl);
 
         if (type==="map"){
           applyMapLocal(dataUrl,true);
@@ -1565,7 +1674,6 @@
       updateSceneSizeEstimate();
     }
 
-    function byteLengthOfString(str){ return new Blob([str]).size; }
     function prettyBytes(bytes){
       const units=["B","KB","MB","GB"];
       let i=0,num=bytes;
@@ -1638,7 +1746,7 @@
       }catch{ return null; }
     }
 
-    async function compressDataURLToWebP(dataUrl, maxDim, quality){
+    async function compressDataURLToWebP_scene(dataUrl, maxDim, quality){
       try{
         const resp=await fetch(dataUrl);
         const blob=await resp.blob();
@@ -1655,7 +1763,7 @@
         return webp || src;
       }
       if (typeof src==="string" && src.startsWith("data:image")){
-        const webp=await compressDataURLToWebP(src,maxDim,quality);
+        const webp=await compressDataURLToWebP_scene(src,maxDim,quality);
         return webp || src;
       }
       return src;
@@ -1677,7 +1785,6 @@
         layerState: JSON.parse(JSON.stringify(layerState))
       };
 
-      // map src
       if (payload.map?.src){
         if (embedRemote && payload.map.src.startsWith("http")){
           const du = await tryFetchAsDataURL(payload.map.src);
@@ -1688,7 +1795,6 @@
         }
       }
 
-      // tokens
       for (const id of Object.keys(payload.tokens)){
         const t = payload.tokens[id];
         if (!t?.src) continue;
@@ -1730,18 +1836,14 @@
       if (!isHost) return;
       if (!payload || typeof payload!=="object") return alert("Cena inválida.");
 
-      // limpar
       const clear = { type:"CLEAR" };
       applyAction(clear,false); broadcastACT(clear);
 
-      // layer state
       if (payload.layerState){
-        // substitui
         layerState.visible = payload.layerState.visible || {};
         layerState.locked = payload.layerState.locked || {};
       }
 
-      // map
       const map = payload.map || {src:null,locked:false,x:0,y:0};
       if (map.src){
         const a = { type:"MAP_UPDATE", src: map.src };
@@ -1753,7 +1855,6 @@
       const moveA = { type:"MAP_MOVE", x: Number(map.x||0), y: Number(map.y||0) };
       applyAction(moveA,false); broadcastACT(moveA);
 
-      // tokens
       const tokens = payload.tokens || {};
       for (const id of Object.keys(tokens)){
         const t = tokens[id];
@@ -1797,20 +1898,6 @@
       r.readAsText(file);
     }
 
-    function initSceneUIHooks(){
-      const q=document.getElementById('quality');
-      const md=document.getElementById('max-dim');
-      const ci=document.getElementById('compress-images');
-      const er=document.getElementById('embed-remote');
-      q?.addEventListener('input', updateQualityLabel);
-      q?.addEventListener('change', updateSceneSizeEstimate);
-      md?.addEventListener('change', updateSceneSizeEstimate);
-      ci?.addEventListener('change', updateSceneSizeEstimate);
-      er?.addEventListener('change', updateSceneSizeEstimate);
-      updateQualityLabel();
-      updateSceneSizeEstimate();
-    }
-
     // ===== CLEAR / UNLOCK =====
     function clearTable(emit=true){
       if (!isHost) return;
@@ -1838,23 +1925,31 @@
         return;
       }
       if (hostConnection?.open){
-        hostConnection.send({kind:"REQ", sender:myId, action});
+        sendNet(hostConnection, {kind:"REQ", sender:myId, action});
       }
     }
 
     function broadcastACT(action, meta={}){
       if (!isHost) return;
       const msg={kind:"ACT", sender:myId, action, meta};
-      connections.forEach(c=>{ if(c.open) c.send(msg); });
+      broadcastNet(msg);
     }
 
     function sendSYNC(conn){
       if (!isHost) return;
-      conn.send({kind:"SYNC", sender:myId, state, layerState});
+      sendNet(conn, {kind:"SYNC", sender:myId, state, layerState});
     }
 
     function handleNetworkData(data, connPeerId=null){
       if (!data?.kind) return;
+
+      if (data.kind==="HELLO"){
+        if (!isHost) return;
+        // client pediu sync (redundante, mas é isso que deixa firme)
+        const conn = connections.find(c=>c.peer===data.sender) || null;
+        if (conn) sendSYNC(conn);
+        return;
+      }
 
       if (data.kind==="SYNC"){
         applyFullSync(data.state, data.layerState);
@@ -1875,7 +1970,6 @@
     function validateClientAction(action){
       if (!action?.type) return {ok:false,reason:"Ação inválida"};
 
-      // allow: MOVE, UPDATE_PROP (somente tokens destravados e layer não trancada e visível)
       const allowed = new Set(["MOVE","UPDATE_PROP"]);
       if (!allowed.has(action.type)) return {ok:false,reason:"Ação não permitida"};
 
@@ -1910,8 +2004,6 @@
         if (action.prop==="layer"){
           const l=Number(action.value);
           if(!Number.isFinite(l)||l<1||l>50) return {ok:false,reason:"Layer inválida"};
-          // opcional: impedir player de trocar layer (se quiser)
-          // return {ok:false,reason:"Player não muda layer"};
         }
       }
       return {ok:true};
@@ -1931,7 +2023,6 @@
     function applyAction(action, fromNetwork){
       switch(action.type){
         case "CLEAR":{
-          // limpa DOM
           document.querySelectorAll('.token').forEach(t=>t.remove());
           mapContainer.innerHTML="";
           document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
@@ -1939,12 +2030,9 @@
           stopMapInertia();
           mapDragging=false;
 
-          // limpa estado
           state.map={src:null,locked:false,x:0,y:0};
           state.tokens={};
 
-          // layerState não zera (mantém preferências), mas pode se quiser:
-          // layerState.visible={}, layerState.locked={}
           setMapLockLocal(false,false);
           setMapOffset(0,0);
 
@@ -1955,7 +2043,6 @@
 
         case "MAP_UPDATE":{
           state.map.src = action.src;
-          // ao atualizar mapa, mantém offsets atuais
           applyMapLocal(action.src,false);
           break;
         }
@@ -1974,8 +2061,7 @@
         case "CREATE_TOKEN":{
           const {id, src, contentType, props} = action;
           addTokenLocal(src, contentType, id, props);
-          if (isHost) state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
-          else state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
+          state.tokens[id]=normalizeTokenProps(id,src,contentType,props);
           rebuildLayersPanel();
           applyLayerVisibilityToDOM();
           break;
@@ -2036,18 +2122,15 @@
     }
 
     function applyFullSync(s, ls){
-      // limpa DOM
       document.querySelectorAll('.token').forEach(t=>t.remove());
       mapContainer.innerHTML="";
       document.querySelectorAll('.dice-entry').forEach(l=>l.remove());
       selectedToken=null;
       stopMapInertia();
 
-      // aplica layerState
       layerState.visible = ls?.visible || {};
       layerState.locked = ls?.locked || {};
 
-      // aplica estado
       if (s?.map){
         state.map = JSON.parse(JSON.stringify(s.map));
         if (state.map.src) applyMapLocal(state.map.src,false);
@@ -2098,8 +2181,16 @@
           peer.on('connection',(conn)=>{
             connections.push(conn);
             setupConnection(conn);
-            conn.on('open',()=>setTimeout(()=>sendSYNC(conn),200));
-            conn.on('close',()=>{connections=connections.filter(c=>c!==conn);});
+
+            conn.on('open',()=>{
+              // SYNC imediato + redundância
+              sendSYNC(conn);
+              setTimeout(()=>sendSYNC(conn), 300);
+            });
+
+            conn.on('close',()=>{
+              connections=connections.filter(c=>c!==conn);
+            });
           });
         }
       });
@@ -2120,6 +2211,10 @@
         statusText.innerText="Conectado";
         tinyStatus.textContent="Conectado";
         statusDot.classList.add('online');
+
+        // ✅ HELLO pede SYNC (se o primeiro SYNC do host falhar por qualquer motivo)
+        sendNet(hostConnection, {kind:"HELLO", sender:myId});
+        setTimeout(()=>sendNet(hostConnection, {kind:"HELLO", sender:myId}), 400);
       });
 
       hostConnection.on('close',()=>{
@@ -2131,16 +2226,10 @@
     }
 
     function setupConnection(conn){
-      conn.on('data',(data)=>handleNetworkData(data, conn.peer));
+      conn.on('data',(data)=>onNetData(data, conn.peer));
     }
 
-    // ===== Players / Assets: constraints =====
-    // (por enquanto o player só move o que está destravado e layer livre/visível; host manda tudo)
-
-    // ===== Map: Host também sync posição quando solta =====
-    // (já fazemos MAP_MOVE ao soltar e no final da inércia)
-
-    // ===== Scene UI hooks =====
+    // ===== UI init =====
     function initUI(){
       const q=document.getElementById('quality');
       q?.addEventListener('input',updateQualityLabel);
