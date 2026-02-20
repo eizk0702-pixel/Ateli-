@@ -4,75 +4,86 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mesa Atelier</title>
-  <meta name="theme-color" content="#0b0d12" />
+  <meta name="theme-color" content="#0b0f1a" />
 
   <style>
     :root{
-      --bg:#0b0d12;
-      --panel:#111524;
-      --panel2:#0f1320;
-      --text:#e9eefc;
-      --muted:#aab3cc;
+      --bg:#0b0f1a;
+      --bg2:#070a12;
+      --panel:rgba(18, 24, 40, .82);
+      --panel2:rgba(12, 16, 28, .82);
+      --card:rgba(0,0,0,.22);
+      --text:#eaf0ff;
+      --muted:#aab6d6;
+      --muted2:#7f8ab0;
       --line:rgba(255,255,255,.10);
       --line2:rgba(255,255,255,.16);
       --accent:#6a5cff;
-      --ok:#38d996;
+      --accent2:#38d996;
       --warn:#ffcc66;
       --danger:#ff4d6d;
-      --radius:16px;
-      --shadow: 0 22px 70px rgba(0,0,0,.55);
+      --shadow: 0 22px 80px rgba(0,0,0,.55);
+      --shadow2: 0 12px 40px rgba(0,0,0,.45);
+      --radius:18px;
+      --radius2:14px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
 
-    *{ box-sizing: border-box; }
+    *{ box-sizing:border-box; }
     html, body{ height:100%; }
     body{
       margin:0;
-      background: radial-gradient(1200px 900px at 15% 10%, rgba(106,92,255,.18), transparent 60%),
-                  radial-gradient(900px 700px at 85% 30%, rgba(56,217,150,.12), transparent 55%),
-                  var(--bg);
       color:var(--text);
       font-family:var(--sans);
       overflow:hidden;
+      background:
+        radial-gradient(1200px 900px at 15% 10%, rgba(106,92,255,.18), transparent 60%),
+        radial-gradient(900px 700px at 85% 28%, rgba(56,217,150,.10), transparent 55%),
+        radial-gradient(900px 700px at 60% 95%, rgba(255,204,102,.06), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
     }
 
-    /* Layout */
+    /* App layout */
     .app{
       height:100%;
       display:grid;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 380px 1fr;
       gap:12px;
       padding:12px;
     }
+
+    /* Sidebar */
     .side{
-      background: linear-gradient(180deg, rgba(17,21,36,.92), rgba(12,15,25,.92));
       border:1px solid var(--line);
       border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(18,24,40,.88), rgba(10,14,24,.86));
       box-shadow: var(--shadow);
       overflow:hidden;
       display:flex;
       flex-direction:column;
       min-width: 320px;
     }
-    .topbar{
+
+    .sideTop{
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--line);
       display:flex;
       align-items:center;
       justify-content:space-between;
-      padding:14px 14px 10px;
-      border-bottom:1px solid var(--line);
       gap:10px;
     }
+
     .brand{
       display:flex;
       flex-direction:column;
-      gap:2px;
+      gap:4px;
       min-width:0;
     }
     .brand .title{
-      font-weight:800;
-      letter-spacing:.5px;
-      font-size:16px;
+      font-size:15px;
+      font-weight:900;
+      letter-spacing:.4px;
       line-height:1.1;
       white-space:nowrap;
       overflow:hidden;
@@ -82,69 +93,90 @@
       font-family:var(--mono);
       font-size:11px;
       color:var(--muted);
-      opacity:.95;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+      opacity:.95;
     }
 
-    .pill{
+    .sideActions{ display:flex; gap:8px; }
+    .iconBtn{
+      width:36px; height:36px;
       display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:8px 10px;
+      align-items:center; justify-content:center;
+      border-radius: 12px;
       border:1px solid var(--line);
-      border-radius: 999px;
       background: rgba(0,0,0,.18);
-      color: var(--muted);
-      font-size:12px;
-      user-select:none;
-      white-space:nowrap;
-    }
-    .dot{ width:8px; height:8px; border-radius:99px; background: var(--ok); box-shadow:0 0 0 3px rgba(56,217,150,.18); }
-
-    .tabs{
-      display:flex;
-      gap:8px;
-      padding:10px 12px;
-      border-bottom:1px solid var(--line);
-      flex-wrap:wrap;
-    }
-    .tab{
-      font-size:12px;
-      padding:8px 10px;
-      border-radius: 999px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.16);
-      color: var(--muted);
       cursor:pointer;
       user-select:none;
       transition: transform .08s ease, border-color .08s ease, background .08s ease;
     }
-    .tab:hover{ border-color: var(--line2); transform: translateY(-1px); }
-    .tab.active{
-      color: var(--text);
-      border-color: rgba(106,92,255,.55);
-      background: rgba(106,92,255,.16);
-    }
+    .iconBtn:hover{ transform: translateY(-1px); border-color: var(--line2); }
+    .iconBtn svg{ width:18px; height:18px; opacity:.9; }
 
-    .panel{
+    .sideScroll{
       padding:12px;
       overflow:auto;
       flex:1;
     }
 
     .section{
-      background: rgba(0,0,0,.18);
       border:1px solid var(--line);
+      background: rgba(0,0,0,.16);
       border-radius: var(--radius);
-      padding:12px;
       margin-bottom:12px;
+      overflow:hidden;
     }
-    .section h3{
-      margin:0 0 10px 0;
+
+    .secHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:12px 12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.12);
+      cursor:pointer;
+      user-select:none;
+    }
+    .secHead .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+    .chip{
+      font-family:var(--mono);
+      font-size:10px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .secTitle{
       font-size:13px;
+      font-weight:900;
       letter-spacing:.2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .chev{
+      width:18px;height:18px;opacity:.75;
+      transition: transform .12s ease;
+      flex:0 0 auto;
+    }
+    .section.closed .chev{ transform: rotate(-90deg); }
+    .secBody{ padding:12px; }
+    .section.closed .secBody{ display:none; }
+
+    .hint{
+      color: var(--muted);
+      font-size:12px;
+      line-height:1.45;
+      margin-top:8px;
     }
 
     .row{ display:flex; gap:10px; flex-wrap:wrap; }
@@ -152,23 +184,28 @@
 
     label{
       display:block;
-      font-size:12px;
+      font-size:11px;
       color: var(--muted);
       margin: 10px 0 6px;
+      letter-spacing:.2px;
     }
     input[type="text"], input[type="number"], textarea, select{
       width:100%;
       padding:10px 10px;
-      border-radius:12px;
+      border-radius: 12px;
       border:1px solid var(--line);
       background: rgba(0,0,0,.22);
       color: var(--text);
       outline:none;
+      transition: border-color .08s ease;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus{
+      border-color: rgba(106,92,255,.55);
     }
     input[type="range"]{ width:100%; }
     textarea{ min-height: 120px; resize: vertical; }
 
-    .btns{ display:flex; gap:10px; flex-wrap:wrap; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
     button{
       border:1px solid var(--line);
       background: rgba(0,0,0,.20);
@@ -176,37 +213,100 @@
       border-radius: 12px;
       padding:10px 12px;
       cursor:pointer;
-      font-weight:650;
+      font-weight:800;
       font-size:12px;
       transition: transform .08s ease, border-color .08s ease, background .08s ease;
       user-select:none;
+      white-space:nowrap;
     }
     button:hover{ transform: translateY(-1px); border-color: var(--line2); }
-    button.primary{
-      border-color: rgba(106,92,255,.55);
-      background: rgba(106,92,255,.18);
+    button.primary{ border-color: rgba(106,92,255,.55); background: rgba(106,92,255,.18); }
+    button.ok{ border-color: rgba(56,217,150,.55); background: rgba(56,217,150,.14); }
+    button.warn{ border-color: rgba(255,204,102,.55); background: rgba(255,204,102,.12); }
+    button.danger{ border-color: rgba(255,77,109,.55); background: rgba(255,77,109,.12); }
+    button.ghost{ background: transparent; }
+
+    .divider{ height:1px; background: var(--line); margin:12px 0; }
+
+    .seg{
+      display:flex;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      border-radius: 14px;
+      overflow:hidden;
     }
-    button.ok{
+    .seg button{
+      border:none;
+      border-right:1px solid var(--line);
+      background: transparent;
+      border-radius:0;
+      padding:10px 10px;
+      flex:1;
+      font-size:12px;
+      font-weight:900;
+      color: var(--muted);
+      transform:none;
+    }
+    .seg button:last-child{ border-right:none; }
+    .seg button.active{
+      background: rgba(106,92,255,.18);
+      color: var(--text);
+    }
+
+    .switchRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 10px;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(0,0,0,.18);
+      margin-top:10px;
+    }
+    .switchRow .text{
+      min-width:0;
+    }
+    .switchRow .text .t{
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .switchRow .text .s{
+      margin-top:2px;
+      font-size:11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 220px;
+    }
+    .toggle{
+      width:44px; height:26px;
+      border-radius: 999px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      position:relative;
+      cursor:pointer;
+      flex:0 0 auto;
+    }
+    .toggle::after{
+      content:"";
+      position:absolute;
+      left:3px; top:3px;
+      width:20px; height:20px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.85);
+      transition: transform .12s ease, background .12s ease;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+    }
+    .toggle.on{
       border-color: rgba(56,217,150,.55);
       background: rgba(56,217,150,.14);
     }
-    button.warn{
-      border-color: rgba(255,204,102,.55);
-      background: rgba(255,204,102,.14);
-    }
-    button.danger{
-      border-color: rgba(255,77,109,.55);
-      background: rgba(255,77,109,.14);
-    }
-    button.ghost{
-      background: transparent;
-    }
-    .hint{
-      font-size:12px;
-      color: var(--muted);
-      line-height:1.45;
-      margin-top:8px;
-    }
+    .toggle.on::after{ transform: translateX(18px); background: rgba(56,217,150,.92); }
+
     .kbd{
       font-family:var(--mono);
       font-size:11px;
@@ -217,32 +317,93 @@
       background: rgba(0,0,0,.22);
     }
 
+    /* Library grid */
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:10px;
+      margin-top:10px;
+    }
+    .thumb{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      border-radius: 14px;
+      overflow:hidden;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .08s ease, border-color .08s ease;
+      position:relative;
+    }
+    .thumb:hover{ transform: translateY(-1px); border-color: var(--line2); }
+    .thumb img{
+      width:100%;
+      height:92px;
+      object-fit:cover;
+      display:block;
+    }
+    .thumb .cap{
+      padding:8px 8px;
+      font-size:11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .thumb .badge{
+      position:absolute;
+      top:8px; left:8px;
+      background: rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.18);
+      color: var(--text);
+      font-size:10px;
+      padding:3px 8px;
+      border-radius: 999px;
+      font-family: var(--mono);
+      backdrop-filter: blur(6px);
+    }
+
+    /* Token list */
     .list{
       display:flex;
       flex-direction:column;
       gap:8px;
+      margin-top:10px;
     }
     .item{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      padding:10px;
+      padding:10px 10px;
       border-radius: 14px;
       border:1px solid var(--line);
       background: rgba(0,0,0,.16);
     }
-    .item .meta{ min-width:0; }
+    .item .meta{ min-width:0; display:flex; align-items:center; gap:10px; }
+    .mini{
+      width:34px; height:34px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(0,0,0,.18);
+      overflow:hidden;
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .mini img{ width:100%; height:100%; object-fit:cover; display:block; }
     .item .meta .name{
-      font-size:13px;
-      font-weight:700;
+      font-size:12px;
+      font-weight:900;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+      max-width: 220px;
     }
     .item .meta .sub{
       font-family:var(--mono);
-      font-size:11px;
+      font-size:10px;
       color: var(--muted);
       margin-top:2px;
       white-space:nowrap;
@@ -254,64 +415,92 @@
       padding:8px 10px;
       border-radius: 999px;
       font-size:11px;
-      font-weight:750;
+      font-weight:900;
     }
 
     /* Stage */
     .stage{
       position:relative;
-      background: linear-gradient(180deg, rgba(17,21,36,.60), rgba(12,15,25,.60));
       border:1px solid var(--line);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
-      min-width: 520px;
+      background:
+        radial-gradient(1400px 900px at 15% 15%, rgba(106,92,255,.10), transparent 60%),
+        radial-gradient(900px 700px at 85% 30%, rgba(56,217,150,.07), transparent 55%),
+        linear-gradient(180deg, rgba(18,24,40,.55), rgba(10,14,24,.58));
     }
 
-    .stageHud{
+    /* Top HUD */
+    .hud{
       position:absolute;
       top:10px; left:10px; right:10px;
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      pointer-events:none;
-      z-index:50;
-    }
-    .hudLeft, .hudRight{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
+      z-index:60;
       pointer-events:none;
     }
+    .hudGroup{ display:flex; gap:8px; flex-wrap:wrap; }
     .hudPill{
       pointer-events:none;
       font-family:var(--mono);
       font-size:11px;
       color: var(--muted);
-      background: rgba(0,0,0,.28);
+      background: rgba(0,0,0,.30);
       border:1px solid var(--line);
       padding:8px 10px;
       border-radius: 999px;
       backdrop-filter: blur(6px);
       white-space:nowrap;
     }
-    .hudPill strong{ color: var(--text); font-weight:800; }
+    .hudPill strong{ color: var(--text); font-weight:900; }
+    .hudPill .dot{
+      display:inline-block;
+      width:8px;height:8px;border-radius:99px;
+      background: var(--accent2);
+      box-shadow:0 0 0 3px rgba(56,217,150,.18);
+      margin-right:8px;
+      vertical-align: -1px;
+    }
 
-    .stageControls{
+    /* Tool bar */
+    .toolBar{
       position:absolute;
-      bottom:10px; left:10px;
+      bottom:12px;
+      left:50%;
+      transform: translateX(-50%);
+      z-index:70;
+      background: rgba(0,0,0,.32);
+      border:1px solid var(--line);
+      border-radius: 18px;
+      padding:8px;
       display:flex;
-      gap:10px;
-      z-index:60;
+      gap:8px;
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow2);
     }
-    .stageControls button{
-      pointer-events:auto;
-      padding:10px 12px;
-      border-radius: 999px;
+    .toolBtn{
+      width:42px; height:42px;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .08s ease, border-color .08s ease, background .08s ease;
     }
+    .toolBtn:hover{ transform: translateY(-1px); border-color: var(--line2); }
+    .toolBtn.active{
+      border-color: rgba(106,92,255,.65);
+      background: rgba(106,92,255,.18);
+    }
+    .toolBtn svg{ width:18px; height:18px; opacity:.95; }
 
-    /* Board & layers */
+    /* Board */
     #board{
       position:absolute;
       left:0; top:0;
@@ -327,17 +516,19 @@
       user-select:none;
       -webkit-user-drag:none;
       pointer-events:none;
+      border-radius: 0;
     }
     canvas{ display:block; }
-    #gridCanvas{ pointer-events:none; opacity: .85; }
+    #gridCanvas{ pointer-events:none; opacity:.92; }
+    #fogCanvas{ pointer-events:none; } /* paint via stage, always */
 
-    /* Tokens */
+    /* Tokens on board */
     .token{
       position:absolute;
       width: 64px;
       height: 64px;
       border-radius: 999px;
-      border: 2px solid rgba(255,255,255,.32);
+      border: 2px solid rgba(255,255,255,.30);
       background: rgba(0,0,0,.25);
       box-shadow: 0 14px 30px rgba(0,0,0,.35);
       transform-origin: 50% 50%;
@@ -351,7 +542,7 @@
     }
     .token:active{ cursor: grabbing; }
     .token.selected{
-      border-color: rgba(106,92,255,.85);
+      border-color: rgba(106,92,255,.90);
       box-shadow: 0 0 0 4px rgba(106,92,255,.22), 0 14px 30px rgba(0,0,0,.35);
     }
     .token img{
@@ -370,7 +561,7 @@
       padding:4px 8px;
       border-radius: 999px;
       font-size: 11px;
-      font-weight:800;
+      font-weight:900;
       color: var(--text);
       background: rgba(0,0,0,.45);
       border:1px solid rgba(255,255,255,.16);
@@ -380,9 +571,10 @@
       text-overflow:ellipsis;
       pointer-events:none;
       font-family:var(--mono);
+      backdrop-filter: blur(6px);
     }
 
-    /* Measurement overlay */
+    /* Overlay for ruler / cursor */
     #overlay{
       position:absolute;
       inset:0;
@@ -390,19 +582,91 @@
       z-index:80;
     }
 
-    /* Hide file inputs nicely */
-    .fileRow{
+    /* Toast */
+    .toastWrap{
+      position:absolute;
+      top:64px; right:14px;
+      z-index:120;
       display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
+      flex-direction:column;
+      gap:8px;
+      pointer-events:none;
     }
-    .fileRow input[type="file"]{ width:100%; }
+    .toast{
+      pointer-events:none;
+      background: rgba(0,0,0,.40);
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding:10px 12px;
+      color: var(--text);
+      font-size:12px;
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow2);
+      max-width: 340px;
+    }
+    .toast .small{ color: var(--muted); font-family: var(--mono); font-size: 11px; margin-top: 3px; }
 
-    /* Small responsive */
-    @media (max-width: 1060px){
+    /* Help modal */
+    .modal{
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:200;
+      padding:16px;
+    }
+    .modal.on{ display:flex; }
+    .modalCard{
+      width:min(920px, 100%);
+      max-height: min(86vh, 760px);
+      overflow:auto;
+      border-radius: 20px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18,24,40,.92), rgba(10,14,24,.92));
+      box-shadow: var(--shadow);
+      padding:16px;
+    }
+    .modalTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding-bottom:10px;
+      border-bottom:1px solid var(--line);
+      margin-bottom:12px;
+    }
+    .modalTop .h{
+      font-weight:1000;
+      letter-spacing:.3px;
+    }
+    .modalGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .callout{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      border-radius: 16px;
+      padding:12px;
+    }
+    .callout h4{ margin:0 0 8px 0; font-size:13px; font-weight:1000; }
+    .callout p{ margin:0; color: var(--muted); font-size:12px; line-height:1.45; }
+    .callout ul{ margin:8px 0 0 18px; color: var(--muted); font-size:12px; line-height:1.55; }
+    .callout li{ margin:4px 0; }
+
+    @media (max-width: 1120px){
       .app{ grid-template-columns: 1fr; }
-      .stage{ min-height: 55vh; }
+      .side{ order:2; }
+      .stage{ order:1; min-height: 52vh; }
+      .modalGrid{ grid-template-columns: 1fr; }
+      .grid{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+    }
+    @media (max-width: 640px){
+      .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .toolBar{ bottom:10px; }
     }
   </style>
 </head>
@@ -410,67 +674,86 @@
 <body>
   <div class="app">
     <aside class="side">
-      <div class="topbar">
+      <div class="sideTop">
         <div class="brand">
           <div class="title">Mesa Atelier</div>
-          <div class="sub">VTT local em 1 arquivo · mapa · tokens · fog · dados</div>
+          <div class="sub">VTT local · 1 arquivo · mapa · tokens · fog · dados</div>
         </div>
-        <div class="pill" title="Status">
-          <span class="dot"></span>
-          pronto (infelizmente)
+
+        <div class="sideActions">
+          <div class="iconBtn" id="btnHelp" title="Guia rápido">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 18h.01M9.5 9.75a2.5 2.5 0 1 1 3.8 2.15c-.95.55-1.3 1-1.3 2.1v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10Z" stroke="currentColor" stroke-width="2"/></svg>
+          </div>
+          <div class="iconBtn" id="btnExportTop" title="Exportar cena (JSON)">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v10m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="iconBtn" id="btnSaveTop" title="Salvar local (localStorage)">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8l4 4v12a2 2 0 0 1-2 2Z" stroke="currentColor" stroke-width="2"/><path d="M7 21v-8h10v8" stroke="currentColor" stroke-width="2"/><path d="M9 7h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
         </div>
       </div>
 
-      <div class="tabs" id="tabs">
-        <div class="tab active" data-tab="assets">Assets</div>
-        <div class="tab" data-tab="tokens">Token</div>
-        <div class="tab" data-tab="fog">Fog</div>
-        <div class="tab" data-tab="dice">Dados</div>
-        <div class="tab" data-tab="ini">Iniciativa</div>
-        <div class="tab" data-tab="notes">Notas</div>
-        <div class="tab" data-tab="settings">Config</div>
-      </div>
-
-      <div class="panel">
-        <!-- ASSETS -->
-        <div class="tabPanel" data-panel="assets">
-          <div class="section">
-            <h3>Mapa</h3>
-            <div class="fileRow">
-              <input id="mapFile" type="file" accept="image/*" />
-              <button class="primary" id="btnLoadMap">Carregar mapa</button>
-              <button class="ghost" id="btnClearMap">Resetar mapa</button>
+      <div class="sideScroll">
+        <!-- MAPA -->
+        <div class="section" id="secMap">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Mapa</div>
+              <div class="chip" id="chipMap">sem mapa</div>
             </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
+            <label>Carregar imagem do mapa</label>
+            <input id="mapFile" type="file" accept="image/*" />
+            <div class="btns">
+              <button class="primary" id="btnLoadMap">Carregar</button>
+              <button class="ghost" id="btnClearMap">Remover</button>
+              <button class="warn" id="btnFit">Enquadrar</button>
+            </div>
+
+            <div class="divider"></div>
+
             <div class="row">
               <div class="col">
-                <label>Largura do mapa (px)</label>
+                <label>Largura (px)</label>
                 <input id="mapW" type="number" min="200" step="10" />
               </div>
               <div class="col">
-                <label>Altura do mapa (px)</label>
+                <label>Altura (px)</label>
                 <input id="mapH" type="number" min="200" step="10" />
               </div>
             </div>
-            <div class="btns" style="margin-top:10px">
+            <div class="btns">
               <button id="btnApplyMapSize">Aplicar tamanho</button>
-              <button class="warn" id="btnFit">Enquadrar</button>
             </div>
+
             <div class="hint">
-              Dica: mapa grande + export com imagem = JSON gigante. É assim que a internet sofre.
+              Se você colocar mapa gigante, o export vai virar um JSON do tamanho da sua autoestima depois de 3h debugando.
             </div>
           </div>
+        </div>
 
-          <div class="section">
-            <h3>Biblioteca de tokens</h3>
-            <div class="fileRow">
-              <input id="tokenFile" type="file" accept="image/*" multiple />
-              <button class="primary" id="btnAddTokenImgs">Adicionar imagens</button>
+        <!-- TOKENS -->
+        <div class="section" id="secTokens">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Tokens</div>
+              <div class="chip" id="chipTokens">0 na mesa</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
+            <label>Adicionar imagens à biblioteca</label>
+            <input id="tokenFile" type="file" accept="image/*" multiple />
+            <div class="btns">
+              <button class="primary" id="btnAddTokenImgs">Adicionar</button>
             </div>
 
             <div class="row">
               <div class="col">
-                <label>Nome do token</label>
-                <input id="newTokenName" type="text" placeholder="Ex: Agente / Goblin / Boss" />
+                <label>Nome padrão ao spawn</label>
+                <input id="newTokenName" type="text" placeholder="Ex: Agente / Monstro / NPC" />
               </div>
               <div class="col">
                 <label>Tamanho (px)</label>
@@ -478,53 +761,69 @@
               </div>
             </div>
 
-            <div class="btns" style="margin-top:10px">
-              <button class="ok" id="btnSpawnColor">Criar token simples (cor)</button>
-              <button id="btnSpawnFromLibrary">Spawn da biblioteca</button>
+            <div class="row">
+              <div class="col">
+                <label>Cor (token simples)</label>
+                <input id="newTokenColor" type="text" value="rgba(106,92,255,.35)" />
+              </div>
+              <div class="col">
+                <label>Shape</label>
+                <select id="newTokenShape">
+                  <option value="circle">Círculo</option>
+                  <option value="square">Quadrado</option>
+                </select>
+              </div>
             </div>
 
-            <label style="margin-top:14px">Tokens na biblioteca</label>
-            <div class="list" id="libraryList"></div>
-            <div class="hint">
-              Você pode adicionar imagens e depois “spawnar”. Simples. Quase dói.
+            <div class="btns">
+              <button class="ok" id="btnSpawnColor">Criar token simples</button>
+              <button id="btnSpawnFromLibrary">Spawn (1º da biblioteca)</button>
             </div>
-          </div>
 
-          <div class="section">
-            <h3>Importar / Exportar cena</h3>
-            <div class="fileRow">
-              <input id="importFile" type="file" accept="application/json" />
-              <button class="primary" id="btnImport">Importar</button>
-            </div>
-            <div class="btns" style="margin-top:10px">
-              <button class="ok" id="btnExport">Exportar</button>
-              <button class="warn" id="btnSaveLocal">Salvar local</button>
-              <button id="btnLoadLocal">Carregar local</button>
-              <button class="danger" id="btnResetAll">Reset geral</button>
-            </div>
-            <div class="hint">
-              Export salva tudo (incluindo fog e imagens em base64). “Salvar local” usa localStorage (pode falhar se ficar grande).
-            </div>
+            <div class="divider"></div>
+
+            <label>Biblioteca (clique para spawn)</label>
+            <div id="libraryGrid" class="grid"></div>
+
+            <div class="divider"></div>
+
+            <label>Tokens na mesa</label>
+            <input id="tokenSearch" type="text" placeholder="Buscar token na mesa..." />
+            <div id="tableTokens" class="list"></div>
           </div>
         </div>
 
-        <!-- TOKEN -->
-        <div class="tabPanel" data-panel="tokens" style="display:none">
-          <div class="section">
-            <h3>Token selecionado</h3>
-            <div id="noSelection" class="hint">Selecione um token no mapa para editar.</div>
+        <!-- TOKEN INSPECTOR -->
+        <div class="section" id="secInspector">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Token selecionado</div>
+              <div class="chip" id="chipSel">nenhum</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
+            <div id="noSelection" class="hint">Selecione um token no mapa para editar aqui.</div>
 
             <div id="tokenEditor" style="display:none">
+              <div class="row" style="align-items:center">
+                <div class="mini" id="selPreview"></div>
+                <div style="min-width:0">
+                  <div style="font-weight:1000; font-size:12px" id="selTitle">Token</div>
+                  <div style="font-family:var(--mono); color:var(--muted); font-size:10px" id="selId">id</div>
+                </div>
+              </div>
+
               <label>Nome</label>
               <input id="tokName" type="text" />
 
               <div class="row">
                 <div class="col">
-                  <label>X (px)</label>
+                  <label>X</label>
                   <input id="tokX" type="number" step="1" />
                 </div>
                 <div class="col">
-                  <label>Y (px)</label>
+                  <label>Y</label>
                   <input id="tokY" type="number" step="1" />
                 </div>
               </div>
@@ -540,88 +839,143 @@
                 </div>
               </div>
 
-              <div class="btns" style="margin-top:10px">
-                <button id="btnCenterOnToken">Centralizar câmera</button>
-                <button class="danger" id="btnDeleteToken">Deletar token</button>
+              <div class="row">
+                <div class="col">
+                  <label>Shape</label>
+                  <select id="tokShape">
+                    <option value="circle">Círculo</option>
+                    <option value="square">Quadrado</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label>Cor (se não tiver imagem)</label>
+                  <input id="tokColor" type="text" />
+                </div>
+              </div>
+
+              <div class="btns">
+                <button id="btnCenterOnToken">Centralizar</button>
+                <button class="danger" id="btnDeleteToken">Deletar</button>
               </div>
 
               <div class="hint">
-                Atalhos: <span class="kbd">Del</span> apaga token · <span class="kbd">Shift</span> arrasta sem snap · <span class="kbd">Espaço</span> + arrastar pan · <span class="kbd">M</span> régua.
+                • Arrastar move<br/>
+                • <span class="kbd">Del</span> apaga<br/>
+                • <span class="kbd">Shift</span> move sem snap<br/>
               </div>
             </div>
-          </div>
-
-          <div class="section">
-            <h3>Tokens na mesa</h3>
-            <div class="list" id="tableTokens"></div>
           </div>
         </div>
 
-        <!-- FOG -->
-        <div class="tabPanel" data-panel="fog" style="display:none">
-          <div class="section">
-            <h3>Fog of War</h3>
-            <div class="row">
-              <div class="col">
-                <label>Ferramenta</label>
-                <select id="fogTool">
-                  <option value="reveal">Revelar (apagar)</option>
-                  <option value="cover">Cobrir (pintar)</option>
-                </select>
+        <!-- FERRAMENTAS -->
+        <div class="section" id="secTools">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Ferramentas</div>
+              <div class="chip" id="chipTool">selecionar</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
+            <div class="hint" style="margin-top:0">
+              Toolbar no rodapé é a forma “correta” de trocar ferramenta. Aqui é só espelho pra você não se perder.
+            </div>
+
+            <div class="switchRow">
+              <div class="text">
+                <div class="t">Grid</div>
+                <div class="s"><span class="kbd">G</span> alterna</div>
               </div>
-              <div class="col">
-                <label>Tamanho do pincel</label>
-                <input id="fogBrush" type="range" min="6" max="160" value="40" />
-              </div>
+              <div class="toggle on" id="tgGrid"></div>
             </div>
 
             <div class="row">
               <div class="col">
-                <label>Fog ligado</label>
-                <select id="fogEnabled">
-                  <option value="on">Sim</option>
-                  <option value="off">Não</option>
-                </select>
+                <label>Grid (px por quadrado)</label>
+                <input id="gridSize" type="number" min="10" step="2" value="64" />
               </div>
+              <div class="col">
+                <label>Cor do grid</label>
+                <input id="gridColor" type="text" value="rgba(255,255,255,0.12)" />
+              </div>
+            </div>
+
+            <div class="switchRow">
+              <div class="text">
+                <div class="t">Snap no grid</div>
+                <div class="s"><span class="kbd">Shift</span> ignora</div>
+              </div>
+              <div class="toggle on" id="tgSnap"></div>
+            </div>
+
+            <div class="btns">
+              <button id="btnApplyGrid">Aplicar grid</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="switchRow">
+              <div class="text">
+                <div class="t">Fog of War</div>
+                <div class="s"><span class="kbd">F</span> alterna</div>
+              </div>
+              <div class="toggle on" id="tgFog"></div>
+            </div>
+
+            <div class="row">
               <div class="col">
                 <label>Opacidade (visual)</label>
                 <input id="fogOpacity" type="range" min="0" max="100" value="92" />
               </div>
+              <div class="col">
+                <label>Pincel</label>
+                <input id="fogBrush" type="range" min="6" max="200" value="44" />
+              </div>
             </div>
 
-            <div class="btns" style="margin-top:10px">
+            <div class="btns">
               <button class="warn" id="btnFillFog">Cobrir tudo</button>
               <button id="btnClearFog">Revelar tudo</button>
             </div>
 
+            <div class="divider"></div>
+
             <div class="hint">
-              Clique/arraste no mapa para pintar. Fog não “pensa”, não “adivinha”, só obedece. Diferente de gente.
+              Atalhos úteis: <span class="kbd">Espaço</span> + arrastar (pan) · <span class="kbd">M</span> (régua) · roda do mouse (zoom)
             </div>
           </div>
         </div>
 
-        <!-- DICE -->
-        <div class="tabPanel" data-panel="dice" style="display:none">
-          <div class="section">
-            <h3>Rolagem de dados</h3>
+        <!-- DADOS -->
+        <div class="section" id="secDice">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Dados</div>
+              <div class="chip">1d20+5</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
             <label>Expressão</label>
             <input id="diceExpr" type="text" placeholder="Ex: 1d20+5, 2d6+1d4+3, d8" />
-            <div class="btns" style="margin-top:10px">
+            <div class="btns">
               <button class="primary" id="btnRoll">Rolar</button>
               <button id="btnClearRolls">Limpar</button>
             </div>
-            <label style="margin-top:14px">Histórico</label>
-            <div class="list" id="rolls"></div>
-            <div class="hint">
-              Suporta: NdM, soma/subtração, espaços opcionais. Nada de matemática avançada. A realidade já faz isso.
-            </div>
+            <div id="rolls" class="list"></div>
           </div>
         </div>
 
-        <!-- INITIATIVE -->
-        <div class="tabPanel" data-panel="ini" style="display:none">
-          <div class="section">
-            <h3>Iniciativa</h3>
+        <!-- INICIATIVA -->
+        <div class="section" id="secIni">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Iniciativa</div>
+              <div class="chip" id="chipIni">vazia</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
             <div class="row">
               <div class="col">
                 <label>Nome</label>
@@ -632,82 +986,61 @@
                 <input id="iniVal" type="number" step="1" placeholder="Ex: 15" />
               </div>
             </div>
-            <div class="btns" style="margin-top:10px">
+            <div class="btns">
               <button class="primary" id="btnAddIni">Adicionar</button>
-              <button id="btnSortIni">Ordenar (desc)</button>
+              <button id="btnSortIni">Ordenar</button>
               <button class="ok" id="btnNextTurn">Próximo turno</button>
               <button class="danger" id="btnClearIni">Limpar</button>
             </div>
-            <label style="margin-top:14px">Lista</label>
-            <div class="list" id="iniList"></div>
-            <div class="hint">
-              O turno atual fica marcado. Se você ignorar isso, a culpa é 100% sua.
-            </div>
+            <div id="iniList" class="list"></div>
           </div>
         </div>
 
-        <!-- NOTES -->
-        <div class="tabPanel" data-panel="notes" style="display:none">
-          <div class="section">
-            <h3>Notas</h3>
-            <textarea id="notes" placeholder="Anotações da sessão, pistas, NPCs, planos que vão dar errado..."></textarea>
-            <div class="btns" style="margin-top:10px">
+        <!-- NOTAS -->
+        <div class="section" id="secNotes">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Notas</div>
+              <div class="chip">persistem no save</div>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="secBody">
+            <textarea id="notes" placeholder="Pistas, NPCs, nomes ridículos, planos que vão dar errado..."></textarea>
+            <div class="btns">
               <button class="warn" id="btnSaveNotes">Salvar notas</button>
               <button id="btnClearNotes">Limpar</button>
             </div>
           </div>
         </div>
 
-        <!-- SETTINGS -->
-        <div class="tabPanel" data-panel="settings" style="display:none">
-          <div class="section">
-            <h3>Grid & snapping</h3>
-            <div class="row">
-              <div class="col">
-                <label>Grid (px por quadrado)</label>
-                <input id="gridSize" type="number" min="10" step="2" value="64" />
-              </div>
-              <div class="col">
-                <label>Mostrar grid</label>
-                <select id="gridShow">
-                  <option value="on">Sim</option>
-                  <option value="off">Não</option>
-                </select>
-              </div>
+        <!-- SALVAR/CARREGAR -->
+        <div class="section" id="secSave">
+          <div class="secHead" data-toggle>
+            <div class="left">
+              <div class="secTitle">Salvar / Carregar</div>
+              <div class="chip">JSON / local</div>
             </div>
-
-            <div class="row">
-              <div class="col">
-                <label>Snap no grid</label>
-                <select id="gridSnap">
-                  <option value="on">Sim</option>
-                  <option value="off">Não</option>
-                </select>
-              </div>
-              <div class="col">
-                <label>Cor do grid</label>
-                <input id="gridColor" type="text" value="rgba(255,255,255,0.12)" />
-              </div>
-            </div>
-
-            <div class="btns" style="margin-top:10px">
-              <button id="btnApplyGrid">Aplicar</button>
-              <button id="btnToggleMeasure">Alternar régua (M)</button>
-            </div>
-
-            <div class="hint">
-              Pan: segure <span class="kbd">Espaço</span> e arraste · Zoom: roda do mouse · Fit: botão no canto do mapa.
-            </div>
+            <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
+          <div class="secBody">
+            <label>Importar cena (JSON)</label>
+            <input id="importFile" type="file" accept="application/json" />
+            <div class="btns">
+              <button class="primary" id="btnImport">Importar</button>
+              <button class="ok" id="btnExport">Exportar</button>
+            </div>
 
-          <div class="section">
-            <h3>Ajuda rápida</h3>
+            <div class="divider"></div>
+
+            <div class="btns">
+              <button class="ok" id="btnSaveLocal">Salvar local</button>
+              <button id="btnLoadLocal">Carregar local</button>
+              <button class="danger" id="btnResetAll">Reset geral</button>
+            </div>
+
             <div class="hint">
-              • Clique em token para selecionar<br/>
-              • Arraste para mover<br/>
-              • <span class="kbd">Del</span> apaga token selecionado<br/>
-              • <span class="kbd">M</span> liga/desliga régua (clique e arraste no mapa)<br/>
-              • Botão “Exportar” gera um JSON com tudo<br/>
+              Export salva tudo (inclusive imagens/fog em base64). LocalStorage pode falhar se ficar grande demais.
             </div>
           </div>
         </div>
@@ -716,40 +1049,111 @@
     </aside>
 
     <main class="stage" id="stage">
-      <div class="stageHud">
-        <div class="hudLeft">
+      <div class="hud">
+        <div class="hudGroup">
+          <div class="hudPill"><span class="dot"></span><strong>Pronto</strong> <span id="hudMode">selecionar</span></div>
           <div class="hudPill"><strong>Zoom</strong> <span id="hudZoom">100%</span></div>
           <div class="hudPill"><strong>Grid</strong> <span id="hudGrid">64px</span></div>
           <div class="hudPill"><strong>Tokens</strong> <span id="hudTokens">0</span></div>
         </div>
-        <div class="hudRight">
-          <div class="hudPill"><strong>Modo</strong> <span id="hudMode">normal</span></div>
+        <div class="hudGroup">
+          <div class="hudPill"><strong>Mouse</strong> roda=zoom · <span class="kbd">Espaço</span>+arrasta=pan</div>
         </div>
       </div>
 
-      <div class="stageControls">
-        <button class="warn" id="btnFit2">Enquadrar</button>
-        <button id="btnResetView">Reset view</button>
-        <button class="primary" id="btnToggleGrid">Grid</button>
-        <button id="btnToggleFog">Fog</button>
-      </div>
+      <div class="toastWrap" id="toastWrap"></div>
 
       <canvas id="overlay"></canvas>
 
       <div id="board">
-        <div id="mapLayer">
-          <!-- map image -->
-          <img id="mapImg" alt="Mapa" />
-        </div>
-        <div id="gridLayer">
-          <canvas id="gridCanvas"></canvas>
-        </div>
+        <div id="mapLayer"><img id="mapImg" alt="Mapa" /></div>
+        <div id="gridLayer"><canvas id="gridCanvas"></canvas></div>
         <div id="tokenLayer"></div>
-        <div id="fogLayer">
-          <canvas id="fogCanvas"></canvas>
+        <div id="fogLayer"><canvas id="fogCanvas"></canvas></div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolBar" id="toolBar">
+        <div class="toolBtn active" data-tool="select" title="Selecionar (V)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M7 3l12 7-7 2-2 7-3-16Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="toolBtn" data-tool="pan" title="Pan (H)  •  Espaço também funciona">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 7l-4 5 4 5M17 7l4 5-4 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="toolBtn" data-tool="measure" title="Régua (M)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 20 20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 17l-1-1m4-4-1-1m4-4-1-1m4-4-1-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="toolBtn" data-tool="fog_reveal" title="Fog: Revelar (E)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" stroke="currentColor" stroke-width="2"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <div class="toolBtn" data-tool="fog_cover" title="Fog: Cobrir (C)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 12s4-7 9-7 9 7 9 7-4 7-9 7-9-7-9-7Z" stroke="currentColor" stroke-width="2"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="toolBtn" data-tool="fit" title="Enquadrar (Z)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M7 3H3v4M17 3h4v4M7 21H3v-4M17 21h4v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 8h8v8H8V8Z" stroke="currentColor" stroke-width="2"/></svg>
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- Help Modal -->
+  <div class="modal" id="helpModal">
+    <div class="modalCard">
+      <div class="modalTop">
+        <div class="h">Guia rápido (Mesa Atelier)</div>
+        <button id="btnCloseHelp" class="ghost">Fechar</button>
+      </div>
+
+      <div class="modalGrid">
+        <div class="callout">
+          <h4>1) Fluxo básico</h4>
+          <p>Carregue um mapa, adicione tokens à biblioteca e dê spawn. Use o Fog para controlar visão. Export para salvar sessão.</p>
+          <ul>
+            <li><b>Mapa</b> → Carregar → Enquadrar</li>
+            <li><b>Tokens</b> → Adicionar imagens → clique na miniatura (spawn)</li>
+            <li><b>Ferramentas</b> → Fog revelar/cobrir → pinte no mapa</li>
+          </ul>
+        </div>
+
+        <div class="callout">
+          <h4>Atalhos que importam</h4>
+          <ul>
+            <li><span class="kbd">Espaço</span> + arrastar: pan</li>
+            <li>Roda do mouse: zoom</li>
+            <li><span class="kbd">M</span>: régua</li>
+            <li><span class="kbd">G</span>: liga/desliga grid</li>
+            <li><span class="kbd">F</span>: liga/desliga fog</li>
+            <li><span class="kbd">Shift</span>: ignora snap (move livre)</li>
+            <li><span class="kbd">Del</span>: apaga token selecionado</li>
+          </ul>
+        </div>
+
+        <div class="callout">
+          <h4>Ferramentas (toolbar)</h4>
+          <p>Use a barra no rodapé. Ela evita “modo escondido”.</p>
+          <ul>
+            <li><b>Selecionar</b>: mover/selecionar token</li>
+            <li><b>Pan</b>: arrastar mesa (sem precisar segurar espaço)</li>
+            <li><b>Régua</b>: clique e arraste para medir</li>
+            <li><b>Fog</b>: revelar/cobrir pintando</li>
+          </ul>
+        </div>
+
+        <div class="callout">
+          <h4>Salvar do jeito certo</h4>
+          <p><b>Exportar</b> gera um JSON completo. <b>Salvar local</b> é conveniente, mas pode falhar se ficar grande.</p>
+          <ul>
+            <li>Para sessões longas, use <b>Export</b>.</li>
+            <li>Para teste rápido, <b>Salvar local</b>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="hint">
+        Se algo der errado, provavelmente foi o universo te lembrando que tudo é frágil e temporário. Ou você esqueceu de apertar “Aplicar grid”. Difícil saber.
+      </div>
+    </div>
   </div>
 
 <script>
@@ -760,18 +1164,21 @@
   // ---------- State ----------
   const DEFAULT_MAP = { w: 1600, h: 900, src: "" };
   const state = {
+    version: 2,
     project: "Mesa Atelier",
+    tool: "select", // select | pan | measure | fog_reveal | fog_cover
     view: { panX: 60, panY: 60, scale: 1 },
     map: { ...DEFAULT_MAP },
     grid: { size: 64, show: true, snap: true, color: "rgba(255,255,255,0.12)" },
-    fog: { enabled: true, opacity: 0.92, tool: "reveal", brush: 40 },
+    fog: { enabled: true, opacity: 0.92, brush: 44 },
     tokens: [],
     tokenLibrary: [], // {id,name,src}
     selectedTokenId: null,
     notes: "",
     rolls: [],
     initiative: { list: [], turnIndex: 0 },
-    measure: { enabled: false, dragging: false, a: null, b: null }
+    measure: { dragging: false, a: null, b: null },
+    input: { spaceDown:false, isPanning:false, panStart:null, tokenDrag:null, fogPainting:false, fogLast:null }
   };
 
   // ---------- Elements ----------
@@ -782,16 +1189,37 @@
   const fogCanvas = $("#fogCanvas");
   const overlay = $("#overlay");
   const tokenLayer = $("#tokenLayer");
+  const toastWrap = $("#toastWrap");
 
+  // HUD
   const hudZoom = $("#hudZoom");
   const hudGrid = $("#hudGrid");
   const hudTokens = $("#hudTokens");
   const hudMode = $("#hudMode");
 
-  // Side UI
-  const tabs = $("#tabs");
-  const panels = $$(".tabPanel");
+  // Chips
+  const chipMap = $("#chipMap");
+  const chipTokens = $("#chipTokens");
+  const chipSel = $("#chipSel");
+  const chipTool = $("#chipTool");
+  const chipIni = $("#chipIni");
 
+  // Sections collapse
+  $$("[data-toggle]").forEach(h => {
+    h.addEventListener("click", () => {
+      const sec = h.closest(".section");
+      sec.classList.toggle("closed");
+    });
+  });
+
+  // Sidebar actions
+  const btnHelp = $("#btnHelp");
+  const helpModal = $("#helpModal");
+  const btnCloseHelp = $("#btnCloseHelp");
+  const btnExportTop = $("#btnExportTop");
+  const btnSaveTop = $("#btnSaveTop");
+
+  // Map controls
   const mapFile = $("#mapFile");
   const btnLoadMap = $("#btnLoadMap");
   const btnClearMap = $("#btnClearMap");
@@ -799,46 +1227,56 @@
   const mapH = $("#mapH");
   const btnApplyMapSize = $("#btnApplyMapSize");
   const btnFit = $("#btnFit");
-  const btnFit2 = $("#btnFit2");
 
+  // Token library + spawn
   const tokenFile = $("#tokenFile");
   const btnAddTokenImgs = $("#btnAddTokenImgs");
-  const libraryList = $("#libraryList");
+  const libraryGrid = $("#libraryGrid");
   const newTokenName = $("#newTokenName");
   const newTokenSize = $("#newTokenSize");
+  const newTokenColor = $("#newTokenColor");
+  const newTokenShape = $("#newTokenShape");
   const btnSpawnColor = $("#btnSpawnColor");
   const btnSpawnFromLibrary = $("#btnSpawnFromLibrary");
+  const tokenSearch = $("#tokenSearch");
+  const tableTokens = $("#tableTokens");
 
-  const importFile = $("#importFile");
-  const btnImport = $("#btnImport");
-  const btnExport = $("#btnExport");
-  const btnSaveLocal = $("#btnSaveLocal");
-  const btnLoadLocal = $("#btnLoadLocal");
-  const btnResetAll = $("#btnResetAll");
-
+  // Inspector
   const noSelection = $("#noSelection");
   const tokenEditor = $("#tokenEditor");
+  const selPreview = $("#selPreview");
+  const selTitle = $("#selTitle");
+  const selId = $("#selId");
   const tokName = $("#tokName");
   const tokX = $("#tokX");
   const tokY = $("#tokY");
   const tokSize = $("#tokSize");
   const tokRot = $("#tokRot");
-  const btnDeleteToken = $("#btnDeleteToken");
+  const tokShape = $("#tokShape");
+  const tokColor = $("#tokColor");
   const btnCenterOnToken = $("#btnCenterOnToken");
-  const tableTokens = $("#tableTokens");
+  const btnDeleteToken = $("#btnDeleteToken");
 
-  const fogTool = $("#fogTool");
-  const fogBrush = $("#fogBrush");
-  const fogEnabled = $("#fogEnabled");
+  // Tools (grid/fog)
+  const tgGrid = $("#tgGrid");
+  const tgSnap = $("#tgSnap");
+  const gridSize = $("#gridSize");
+  const gridColor = $("#gridColor");
+  const btnApplyGrid = $("#btnApplyGrid");
+
+  const tgFog = $("#tgFog");
   const fogOpacity = $("#fogOpacity");
+  const fogBrush = $("#fogBrush");
   const btnFillFog = $("#btnFillFog");
   const btnClearFog = $("#btnClearFog");
 
+  // Dice
   const diceExpr = $("#diceExpr");
   const btnRoll = $("#btnRoll");
   const btnClearRolls = $("#btnClearRolls");
   const rolls = $("#rolls");
 
+  // Initiative
   const iniName = $("#iniName");
   const iniVal = $("#iniVal");
   const btnAddIni = $("#btnAddIni");
@@ -847,32 +1285,37 @@
   const btnClearIni = $("#btnClearIni");
   const iniList = $("#iniList");
 
+  // Notes
   const notes = $("#notes");
   const btnSaveNotes = $("#btnSaveNotes");
   const btnClearNotes = $("#btnClearNotes");
 
-  const gridSize = $("#gridSize");
-  const gridShow = $("#gridShow");
-  const gridSnap = $("#gridSnap");
-  const gridColor = $("#gridColor");
-  const btnApplyGrid = $("#btnApplyGrid");
-  const btnToggleMeasure = $("#btnToggleMeasure");
+  // Save
+  const importFile = $("#importFile");
+  const btnImport = $("#btnImport");
+  const btnExport = $("#btnExport");
+  const btnSaveLocal = $("#btnSaveLocal");
+  const btnLoadLocal = $("#btnLoadLocal");
+  const btnResetAll = $("#btnResetAll");
 
-  const btnResetView = $("#btnResetView");
-  const btnToggleGrid = $("#btnToggleGrid");
-  const btnToggleFog = $("#btnToggleFog");
+  // Toolbar
+  const toolBar = $("#toolBar");
+  const toolBtns = $$(".toolBtn", toolBar);
 
   // ---------- Helpers ----------
   const uid = () => Math.random().toString(36).slice(2,10) + "-" + Date.now().toString(36);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (m) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
 
-  function setHUD(){
-    hudZoom.textContent = Math.round(state.view.scale*100) + "%";
-    hudGrid.textContent = state.grid.size + "px";
-    hudTokens.textContent = String(state.tokens.length);
-    hudMode.textContent =
-      state.measure.enabled ? "régua" :
-      (isFogPainting ? `fog:${state.fog.tool}` : "normal");
+  function toast(msg, sub=""){
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.innerHTML = `<div>${escapeHtml(msg)}</div>${sub?`<div class="small">${escapeHtml(sub)}</div>`:""}`;
+    toastWrap.appendChild(el);
+    setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateY(-4px)"; }, 2200);
+    setTimeout(() => el.remove(), 2600);
   }
 
   function stageRect(){ return stage.getBoundingClientRect(); }
@@ -881,16 +1324,16 @@
     const { panX, panY, scale } = state.view;
     board.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
     setHUD();
-    drawOverlay(); // keep ruler in sync
+    drawOverlay();
   }
 
   function screenToBoard(clientX, clientY){
     const r = stageRect();
-    const x = (clientX - r.left - state.view.panX) / state.view.scale;
-    const y = (clientY - r.top  - state.view.panY) / state.view.scale;
-    return { x, y };
+    return {
+      x: (clientX - r.left - state.view.panX) / state.view.scale,
+      y: (clientY - r.top  - state.view.panY) / state.view.scale
+    };
   }
-
   function boardToScreen(x, y){
     const r = stageRect();
     return {
@@ -901,14 +1344,37 @@
 
   function snap(v, s){ return Math.round(v / s) * s; }
 
+  function setHUD(){
+    hudZoom.textContent = Math.round(state.view.scale*100) + "%";
+    hudGrid.textContent = state.grid.size + "px";
+    hudTokens.textContent = String(state.tokens.length);
+
+    const toolName = ({
+      select:"selecionar",
+      pan:"pan",
+      measure:"régua",
+      fog_reveal:"fog: revelar",
+      fog_cover:"fog: cobrir"
+    }[state.tool] || state.tool);
+
+    hudMode.textContent = toolName;
+
+    chipTool.textContent = toolName;
+    chipTokens.textContent = `${state.tokens.length} na mesa`;
+    chipMap.textContent = state.map.src ? `${state.map.w}×${state.map.h}` : "sem mapa";
+    chipIni.textContent = state.initiative.list.length ? `${state.initiative.list.length} itens` : "vazia";
+
+    tgGrid.classList.toggle("on", state.grid.show);
+    tgSnap.classList.toggle("on", state.grid.snap);
+    tgFog.classList.toggle("on", state.fog.enabled);
+  }
+
   function ensureCanvasSizes(){
     const w = state.map.w, h = state.map.h;
 
-    // board base size
     board.style.width = w + "px";
     board.style.height = h + "px";
 
-    // layers
     $("#mapLayer").style.width = w + "px";
     $("#mapLayer").style.height = h + "px";
     $("#gridLayer").style.width = w + "px";
@@ -918,30 +1384,32 @@
     $("#fogLayer").style.width = w + "px";
     $("#fogLayer").style.height = h + "px";
 
-    // map img
     mapImg.style.width = w + "px";
     mapImg.style.height = h + "px";
 
-    // grid canvas
-    gridCanvas.width = w;
-    gridCanvas.height = h;
+    // DPR-aware canvas sizes
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+
+    gridCanvas.width = w * dpr;
+    gridCanvas.height = h * dpr;
     gridCanvas.style.width = w + "px";
     gridCanvas.style.height = h + "px";
 
-    // fog canvas
-    fogCanvas.width = w;
-    fogCanvas.height = h;
+    fogCanvas.width = w * dpr;
+    fogCanvas.height = h * dpr;
     fogCanvas.style.width = w + "px";
     fogCanvas.style.height = h + "px";
 
-    // overlay canvas (screen space)
     resizeOverlay();
+    drawGrid();
+    applyFogVisual();
   }
 
   function resizeOverlay(){
     const r = stageRect();
-    overlay.width = Math.max(1, Math.floor(r.width));
-    overlay.height = Math.max(1, Math.floor(r.height));
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    overlay.width = Math.max(1, Math.floor(r.width * dpr));
+    overlay.height = Math.max(1, Math.floor(r.height * dpr));
     overlay.style.width = r.width + "px";
     overlay.style.height = r.height + "px";
     drawOverlay();
@@ -949,13 +1417,15 @@
 
   window.addEventListener("resize", () => {
     resizeOverlay();
-    requestAnimationFrame(() => fitIfNeeded(false));
+    requestAnimationFrame(() => fit(true, false));
   });
 
   // ---------- Grid ----------
   function drawGrid(){
     const ctx = gridCanvas.getContext("2d");
-    ctx.clearRect(0,0,gridCanvas.width, gridCanvas.height);
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0,0,state.map.w,state.map.h);
 
     if(!state.grid.show) return;
 
@@ -963,74 +1433,59 @@
     ctx.strokeStyle = state.grid.color;
     ctx.lineWidth = 1;
 
-    // Crisp lines
     ctx.save();
     ctx.translate(0.5, 0.5);
 
     for(let x = 0; x <= state.map.w; x += s){
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, state.map.h);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.map.h); ctx.stroke();
     }
     for(let y = 0; y <= state.map.h; y += s){
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(state.map.w, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.map.w, y); ctx.stroke();
     }
 
     // heavier every 5
     ctx.strokeStyle = "rgba(255,255,255,0.18)";
     for(let x = 0; x <= state.map.w; x += s*5){
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, state.map.h);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.map.h); ctx.stroke();
     }
     for(let y = 0; y <= state.map.h; y += s*5){
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(state.map.w, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.map.w, y); ctx.stroke();
     }
 
     ctx.restore();
   }
 
   // ---------- Fog ----------
-  let isFogPainting = false;
-  let fogLast = null;
-
   function applyFogVisual(){
     fogCanvas.style.opacity = String(state.fog.enabled ? state.fog.opacity : 0);
-    fogCanvas.style.pointerEvents = state.fog.enabled ? "auto" : "none";
   }
-
-  function fillFog(){
+  function fogCtx(){
     const ctx = fogCanvas.getContext("2d");
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+  function fillFog(){
+    const ctx = fogCtx();
     ctx.save();
     ctx.globalCompositeOperation = "source-over";
     ctx.fillStyle = "rgba(0,0,0,1)";
-    ctx.fillRect(0,0,fogCanvas.width, fogCanvas.height);
+    ctx.fillRect(0,0,state.map.w,state.map.h);
     ctx.restore();
   }
-
   function clearFog(){
-    const ctx = fogCanvas.getContext("2d");
-    ctx.clearRect(0,0,fogCanvas.width, fogCanvas.height);
+    const ctx = fogCtx();
+    ctx.clearRect(0,0,state.map.w,state.map.h);
   }
-
-  function paintFogLine(a, b){
-    const ctx = fogCanvas.getContext("2d");
+  function paintFogLine(a, b, mode){
+    const ctx = fogCtx();
     ctx.save();
 
-    const size = state.fog.brush;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.lineWidth = size;
+    ctx.lineWidth = state.fog.brush;
 
-    if(state.fog.tool === "reveal"){
+    if(mode === "reveal"){
       ctx.globalCompositeOperation = "destination-out";
       ctx.strokeStyle = "rgba(0,0,0,1)";
     } else {
@@ -1044,16 +1499,14 @@
     ctx.stroke();
     ctx.restore();
   }
-
   function loadFogFromDataURL(dataURL){
     if(!dataURL){
-      fillFog();
-      return;
+      fillFog(); return;
     }
     const img = new Image();
     img.onload = () => {
-      const ctx = fogCanvas.getContext("2d");
-      ctx.clearRect(0,0,fogCanvas.width, fogCanvas.height);
+      const ctx = fogCtx();
+      ctx.clearRect(0,0,state.map.w,state.map.h);
       ctx.drawImage(img, 0, 0, state.map.w, state.map.h);
     };
     img.src = dataURL;
@@ -1068,21 +1521,16 @@
       el = document.createElement("div");
       el.className = "token";
       el.dataset.tokenId = token.id;
-      el.innerHTML = `
-        <img draggable="false" alt="" style="display:none" />
-        <div class="label"></div>
-      `;
+      el.innerHTML = `<img draggable="false" alt="" style="display:none" /><div class="label"></div>`;
       tokenLayer.appendChild(el);
 
-      // selection
       el.addEventListener("pointerdown", (e) => {
-        if(e.button !== 0) return; // left only
-        if(state.measure.enabled) return; // measure uses stage
+        if(e.button !== 0) return;
+        if(state.tool !== "select") return;
         selectToken(token.id);
         beginTokenDrag(e, token.id);
       });
 
-      // prevent context menu
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     }
 
@@ -1112,43 +1560,38 @@
   }
 
   function renderAllTokens(){
-    // remove missing
     const ids = new Set(state.tokens.map(t => t.id));
-    $$(".token", tokenLayer).forEach(el => {
-      if(!ids.has(el.dataset.tokenId)) el.remove();
-    });
+    $$(".token", tokenLayer).forEach(el => { if(!ids.has(el.dataset.tokenId)) el.remove(); });
     state.tokens.forEach(renderToken);
     refreshTokenLists();
+    refreshTokenEditor(true);
     setHUD();
   }
 
   function selectToken(id){
     state.selectedTokenId = id;
     renderAllTokens();
-    refreshTokenEditor();
   }
 
   function deselectToken(){
     state.selectedTokenId = null;
     renderAllTokens();
-    refreshTokenEditor();
   }
 
   function createToken({name, size, x, y, rot=0, src="", color="rgba(106,92,255,.35)", shape="circle"}){
     const t = { id: uid(), name, size, x, y, rot, src, color, shape };
     state.tokens.push(t);
     selectToken(t.id);
-    renderAllTokens();
+    toast("Token criado", `${t.name || "token"} · ${Math.round(t.x)},${Math.round(t.y)}`);
   }
 
   // Dragging token
-  let tokenDrag = null;
   function beginTokenDrag(e, tokenId){
     const t = tokenById(tokenId);
     if(!t) return;
 
     const p = screenToBoard(e.clientX, e.clientY);
-    tokenDrag = {
+    state.input.tokenDrag = {
       id: tokenId,
       start: { x: p.x, y: p.y },
       orig: { x: t.x, y: t.y },
@@ -1160,16 +1603,17 @@
   }
 
   function moveTokenDrag(e){
-    if(!tokenDrag) return;
-    const t = tokenById(tokenDrag.id);
+    const drag = state.input.tokenDrag;
+    if(!drag) return;
+    const t = tokenById(drag.id);
     if(!t) return;
 
     const p = screenToBoard(e.clientX, e.clientY);
-    const dx = p.x - tokenDrag.start.x;
-    const dy = p.y - tokenDrag.start.y;
+    const dx = p.x - drag.start.x;
+    const dy = p.y - drag.start.y;
 
-    let nx = tokenDrag.orig.x + dx;
-    let ny = tokenDrag.orig.y + dy;
+    let nx = drag.orig.x + dx;
+    let ny = drag.orig.y + dy;
 
     const snapEnabled = state.grid.snap && !e.shiftKey;
     if(snapEnabled){
@@ -1186,74 +1630,15 @@
   }
 
   function endTokenDrag(){
-    if(!tokenDrag) return;
-    tokenDrag = null;
+    if(!state.input.tokenDrag) return;
+    state.input.tokenDrag = null;
     refreshTokenLists();
   }
 
-  // ---------- Measure (ruler) ----------
-  function drawOverlay(){
-    const ctx = overlay.getContext("2d");
-    ctx.clearRect(0,0,overlay.width, overlay.height);
-    if(!state.measure.enabled || !state.measure.a || !state.measure.b) return;
-
-    const a = state.measure.a;
-    const b = state.measure.b;
-
-    const A = boardToScreen(a.x, a.y);
-    const B = boardToScreen(b.x, b.y);
-    const r = stageRect();
-
-    const ax = A.x - r.left, ay = A.y - r.top;
-    const bx = B.x - r.left, by = B.y - r.top;
-
-    // line
-    ctx.save();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.85)";
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
-
-    // dots
-    ctx.fillStyle = "rgba(106,92,255,0.95)";
-    ctx.beginPath();
-    ctx.arc(ax, ay, 4, 0, Math.PI*2);
-    ctx.arc(bx, by, 4, 0, Math.PI*2);
-    ctx.fill();
-
-    // distance
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const distPx = Math.hypot(dx, dy);
-    const squares = distPx / state.grid.size;
-
-    const midx = (ax+bx)/2, midy = (ay+by)/2;
-    const text = `${squares.toFixed(2)}q (${Math.round(distPx)}px)`;
-
-    ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--mono");
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 1;
-
-    const pad = 6;
-    const m = ctx.measureText(text);
-    const w = m.width + pad*2;
-    const h = 22;
-
-    ctx.beginPath();
-    roundRect(ctx, midx - w/2, midy - h/2, w, h, 10);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillText(text, midx - m.width/2, midy + 4);
-    ctx.restore();
-  }
-
+  // ---------- Overlay: ruler + cursor preview ----------
   function roundRect(ctx,x,y,w,h,r){
     const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
     ctx.moveTo(x+rr, y);
     ctx.arcTo(x+w, y, x+w, y+h, rr);
     ctx.arcTo(x+w, y+h, x, y+h, rr);
@@ -1262,21 +1647,93 @@
     ctx.closePath();
   }
 
-  // ---------- Map loading ----------
+  function drawOverlay(cursor=null){
+    const ctx = overlay.getContext("2d");
+    const r = stageRect();
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0,0,r.width,r.height);
+
+    // Cursor preview for fog tool
+    if(cursor && (state.tool === "fog_reveal" || state.tool === "fog_cover")){
+      const p = cursor;
+      const rad = state.fog.brush/2;
+      ctx.save();
+      ctx.strokeStyle = state.tool === "fog_reveal" ? "rgba(56,217,150,0.85)" : "rgba(255,204,102,0.85)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad * state.view.scale, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Ruler
+    if(state.tool === "measure" && state.measure.a && state.measure.b){
+      const a = state.measure.a;
+      const b = state.measure.b;
+
+      const A = boardToScreen(a.x, a.y);
+      const B = boardToScreen(b.x, b.y);
+
+      const ax = A.x - r.left, ay = A.y - r.top;
+      const bx = B.x - r.left, by = B.y - r.top;
+
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(106,92,255,0.95)";
+      ctx.beginPath();
+      ctx.arc(ax, ay, 4, 0, Math.PI*2);
+      ctx.arc(bx, by, 4, 0, Math.PI*2);
+      ctx.fill();
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distPx = Math.hypot(dx, dy);
+      const squares = distPx / state.grid.size;
+
+      const midx = (ax+bx)/2, midy = (ay+by)/2;
+      const text = `${squares.toFixed(2)}q (${Math.round(distPx)}px)`;
+
+      ctx.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace"}`;
+      const pad = 6;
+      const m = ctx.measureText(text);
+      const w = m.width + pad*2;
+      const h = 22;
+
+      ctx.fillStyle = "rgba(0,0,0,0.65)";
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1;
+
+      roundRect(ctx, midx - w/2, midy - h/2, w, h, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillText(text, midx - m.width/2, midy + 4);
+      ctx.restore();
+    }
+  }
+
+  // ---------- Map ----------
   function setMapSrc(src){
     state.map.src = src || "";
     mapImg.src = src || "";
   }
-
   function setMapSize(w, h){
     state.map.w = Math.max(200, Math.floor(w));
     state.map.h = Math.max(200, Math.floor(h));
     mapW.value = state.map.w;
     mapH.value = state.map.h;
     ensureCanvasSizes();
-    drawGrid();
-    applyFogVisual();
     renderAllTokens();
+    setHUD();
   }
 
   async function fileToDataURL(file){
@@ -1297,9 +1754,9 @@
     img.onload = () => {
       setMapSrc(dataURL);
       setMapSize(img.naturalWidth || state.map.w, img.naturalHeight || state.map.h);
-      // Fog defaults: cover all on new map
       fillFog();
-      fitIfNeeded(true);
+      fit(true, true);
+      toast("Mapa carregado", `${state.map.w}×${state.map.h}`);
     };
     img.src = dataURL;
   }
@@ -1307,26 +1764,27 @@
   function resetMap(){
     setMapSrc("");
     setMapSize(DEFAULT_MAP.w, DEFAULT_MAP.h);
-    // gentle default fog: off if no map?
     fillFog();
-    fitIfNeeded(true);
+    fit(true, true);
+    toast("Mapa removido", "Voltando ao canvas padrão");
   }
 
-  // ---------- Fit / view ----------
-  function fitIfNeeded(force){
+  // Fit view
+  function fit(force=true, center=true){
     const r = stageRect();
-    const pad = 80;
+    const pad = 92;
     const availableW = r.width - pad*2;
     const availableH = r.height - pad*2;
     if(availableW <= 0 || availableH <= 0) return;
 
     if(force){
-      const scale = clamp(Math.min(availableW / state.map.w, availableH / state.map.h), 0.15, 2.5);
+      const scale = clamp(Math.min(availableW / state.map.w, availableH / state.map.h), 0.15, 2.8);
       state.view.scale = scale;
-      state.view.panX = (r.width - state.map.w*scale)/2;
-      state.view.panY = (r.height - state.map.h*scale)/2;
+      if(center){
+        state.view.panX = (r.width - state.map.w*scale)/2;
+        state.view.panY = (r.height - state.map.h*scale)/2;
+      }
       applyBoardTransform();
-      return;
     }
   }
 
@@ -1337,82 +1795,34 @@
     applyBoardTransform();
   }
 
-  // ---------- Tabs ----------
-  tabs.addEventListener("click", (e) => {
-    const t = e.target.closest(".tab");
-    if(!t) return;
-    $$(".tab", tabs).forEach(x => x.classList.remove("active"));
-    t.classList.add("active");
-    const key = t.dataset.tab;
-    panels.forEach(p => p.style.display = (p.dataset.panel === key) ? "" : "none");
-  });
-
-  // ---------- UI bind: map ----------
-  btnLoadMap.addEventListener("click", () => loadMapFromFile());
-  btnClearMap.addEventListener("click", () => resetMap());
-  btnApplyMapSize.addEventListener("click", () => {
-    setMapSize(Number(mapW.value || state.map.w), Number(mapH.value || state.map.h));
-    // keep fog in place by scaling content (best effort)
-    // simplest: clear and fill, user can repaint
-    fillFog();
-  });
-  btnFit.addEventListener("click", () => fitIfNeeded(true));
-  btnFit2.addEventListener("click", () => fitIfNeeded(true));
-
-  // ---------- UI bind: library ----------
-  btnAddTokenImgs.addEventListener("click", async () => {
-    const files = tokenFile.files ? Array.from(tokenFile.files) : [];
-    if(!files.length) return;
-
-    for(const f of files){
-      const src = await fileToDataURL(f);
-      state.tokenLibrary.push({ id: uid(), name: f.name.replace(/\.[^.]+$/,""), src });
-    }
-    tokenFile.value = "";
-    renderLibrary();
-  });
-
+  // ---------- Library ----------
   function renderLibrary(){
-    libraryList.innerHTML = "";
+    libraryGrid.innerHTML = "";
     if(!state.tokenLibrary.length){
-      libraryList.innerHTML = `<div class="hint">Biblioteca vazia. Adicione imagens ou use token de cor.</div>`;
+      libraryGrid.innerHTML = `<div class="hint" style="grid-column:1/-1">Biblioteca vazia. Adicione imagens ou crie token simples.</div>`;
       return;
     }
+
     for(const it of state.tokenLibrary){
-      const row = document.createElement("div");
-      row.className = "item";
-      row.innerHTML = `
-        <div class="meta">
-          <div class="name">${escapeHtml(it.name)}</div>
-          <div class="sub">${it.id}</div>
-        </div>
-        <div class="actions">
-          <button class="tiny ok" data-act="spawn">Spawn</button>
-          <button class="tiny danger" data-act="del">Remover</button>
-        </div>
+      const el = document.createElement("div");
+      el.className = "thumb";
+      el.title = "Clique para spawn";
+      el.innerHTML = `
+        <div class="badge">spawn</div>
+        <img alt="" src="${it.src}" />
+        <div class="cap">${escapeHtml(it.name)}</div>
       `;
-      row.addEventListener("click", (e) => {
-        const b = e.target.closest("button");
-        if(!b) return;
-        const act = b.dataset.act;
-        if(act === "spawn"){
-          spawnFromLibraryId(it.id);
-        } else if(act === "del"){
+      el.addEventListener("click", () => spawnFromLibraryId(it.id));
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if(confirm(`Remover "${it.name}" da biblioteca?`)){
           state.tokenLibrary = state.tokenLibrary.filter(x => x.id !== it.id);
           renderLibrary();
+          toast("Removido da biblioteca", it.name);
         }
       });
-      libraryList.appendChild(row);
+      libraryGrid.appendChild(el);
     }
-  }
-
-  function spawnFromLibraryId(id){
-    const it = state.tokenLibrary.find(x => x.id === id);
-    if(!it) return;
-    const name = (newTokenName.value || it.name || "token").trim();
-    const size = Number(newTokenSize.value || 64);
-    const center = getStageCenterBoard();
-    createToken({ name, size, x: center.x, y: center.y, src: it.src });
   }
 
   function getStageCenterBoard(){
@@ -1423,37 +1833,96 @@
     return { x: clamp(p.x, 0, state.map.w), y: clamp(p.y, 0, state.map.h) };
   }
 
-  btnSpawnFromLibrary.addEventListener("click", () => {
-    const it = state.tokenLibrary[0];
+  function spawnFromLibraryId(id){
+    const it = state.tokenLibrary.find(x => x.id === id);
     if(!it) return;
-    spawnFromLibraryId(it.id);
-  });
-
-  btnSpawnColor.addEventListener("click", () => {
-    const name = (newTokenName.value || "token").trim();
+    const name = (newTokenName.value || it.name || "token").trim();
     const size = Number(newTokenSize.value || 64);
+    const shape = newTokenShape.value || "circle";
     const center = getStageCenterBoard();
-    const colors = [
-      "rgba(106,92,255,.35)",
-      "rgba(56,217,150,.30)",
-      "rgba(255,204,102,.30)",
-      "rgba(255,77,109,.30)",
-      "rgba(255,255,255,.18)"
-    ];
-    const color = colors[Math.floor(Math.random()*colors.length)];
-    createToken({ name, size, x: center.x, y: center.y, src: "", color });
-  });
+    createToken({ name, size, x:center.x, y:center.y, src: it.src, shape });
+  }
 
-  // ---------- Token editor / lists ----------
+  // ---------- Token lists / inspector ----------
+  function refreshTokenLists(){
+    const q = (tokenSearch.value || "").trim().toLowerCase();
+    tableTokens.innerHTML = "";
+
+    const list = state.tokens.filter(t => {
+      if(!q) return true;
+      return (t.name || "").toLowerCase().includes(q);
+    });
+
+    if(!list.length){
+      tableTokens.innerHTML = `<div class="hint">Nenhum token encontrado.</div>`;
+      return;
+    }
+
+    for(const t of list){
+      const row = document.createElement("div");
+      row.className = "item";
+      const isSel = t.id === state.selectedTokenId;
+
+      let mini = `<div class="mini"></div>`;
+      if(t.src) mini = `<div class="mini"><img alt="" src="${t.src}"></div>`;
+
+      row.style.borderColor = isSel ? "rgba(106,92,255,.60)" : "var(--line)";
+      row.style.background = isSel ? "rgba(106,92,255,.10)" : "rgba(0,0,0,.16)";
+
+      row.innerHTML = `
+        <div class="meta">
+          ${mini}
+          <div style="min-width:0">
+            <div class="name">${escapeHtml(t.name || "token")}</div>
+            <div class="sub">x:${Math.round(t.x)} y:${Math.round(t.y)} size:${Math.round(t.size)}</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="tiny" data-act="sel">Selecionar</button>
+        </div>
+      `;
+
+      row.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if(b){
+          selectToken(t.id);
+          return;
+        }
+        selectToken(t.id);
+      });
+
+      tableTokens.appendChild(row);
+    }
+  }
+
   function refreshTokenEditor(updateInputs=true){
     const t = tokenById(state.selectedTokenId);
     if(!t){
+      chipSel.textContent = "nenhum";
       noSelection.style.display = "";
       tokenEditor.style.display = "none";
+      selPreview.innerHTML = "";
       return;
     }
+
+    chipSel.textContent = t.name ? t.name.slice(0,18) : "token";
     noSelection.style.display = "none";
     tokenEditor.style.display = "";
+
+    selTitle.textContent = t.name || "token";
+    selId.textContent = t.id;
+
+    // preview
+    selPreview.innerHTML = "";
+    if(t.src){
+      const img = document.createElement("img");
+      img.src = t.src;
+      img.alt = "";
+      selPreview.appendChild(img);
+    } else {
+      selPreview.style.background = t.color || "rgba(106,92,255,.35)";
+      selPreview.textContent = "";
+    }
 
     if(updateInputs){
       tokName.value = t.name || "";
@@ -1461,81 +1930,10 @@
       tokY.value = Math.round(t.y);
       tokSize.value = Math.round(t.size);
       tokRot.value = Math.round(t.rot);
+      tokShape.value = t.shape || "circle";
+      tokColor.value = t.color || "rgba(106,92,255,.35)";
     }
   }
-
-  function refreshTokenLists(){
-    // table tokens list (for quick select)
-    tableTokens.innerHTML = "";
-    if(!state.tokens.length){
-      tableTokens.innerHTML = `<div class="hint">Nenhum token na mesa ainda.</div>`;
-      return;
-    }
-    for(const t of state.tokens){
-      const row = document.createElement("div");
-      row.className = "item";
-      row.innerHTML = `
-        <div class="meta">
-          <div class="name">${escapeHtml(t.name || "token")}</div>
-          <div class="sub">x:${Math.round(t.x)} y:${Math.round(t.y)} size:${Math.round(t.size)} rot:${Math.round(t.rot)}</div>
-        </div>
-        <div class="actions">
-          <button class="tiny" data-act="sel">Selecionar</button>
-        </div>
-      `;
-      row.addEventListener("click", (e) => {
-        const b = e.target.closest("button");
-        if(!b) return;
-        selectToken(t.id);
-      });
-      tableTokens.appendChild(row);
-    }
-  }
-
-  tokName.addEventListener("input", () => {
-    const t = tokenById(state.selectedTokenId); if(!t) return;
-    t.name = tokName.value;
-    renderAllTokens();
-  });
-  tokX.addEventListener("input", () => {
-    const t = tokenById(state.selectedTokenId); if(!t) return;
-    t.x = clamp(Number(tokX.value||t.x), 0, state.map.w);
-    renderToken(t);
-    refreshTokenLists();
-  });
-  tokY.addEventListener("input", () => {
-    const t = tokenById(state.selectedTokenId); if(!t) return;
-    t.y = clamp(Number(tokY.value||t.y), 0, state.map.h);
-    renderToken(t);
-    refreshTokenLists();
-  });
-  tokSize.addEventListener("input", () => {
-    const t = tokenById(state.selectedTokenId); if(!t) return;
-    t.size = clamp(Number(tokSize.value||t.size), 16, 512);
-    renderToken(t);
-    refreshTokenLists();
-  });
-  tokRot.addEventListener("input", () => {
-    const t = tokenById(state.selectedTokenId); if(!t) return;
-    t.rot = Number(tokRot.value||t.rot);
-    renderToken(t);
-    refreshTokenLists();
-  });
-
-  btnDeleteToken.addEventListener("click", () => {
-    const id = state.selectedTokenId;
-    if(!id) return;
-    state.tokens = state.tokens.filter(t => t.id !== id);
-    state.selectedTokenId = null;
-    renderAllTokens();
-    refreshTokenEditor();
-  });
-
-  btnCenterOnToken.addEventListener("click", () => {
-    const t = tokenById(state.selectedTokenId);
-    if(!t) return;
-    centerViewOn(t.x, t.y);
-  });
 
   function centerViewOn(x,y){
     const r = stageRect();
@@ -1545,26 +1943,8 @@
     applyBoardTransform();
   }
 
-  // ---------- Fog UI ----------
-  fogTool.addEventListener("change", () => state.fog.tool = fogTool.value);
-  fogBrush.addEventListener("input", () => state.fog.brush = Number(fogBrush.value));
-  fogEnabled.addEventListener("change", () => {
-    state.fog.enabled = fogEnabled.value === "on";
-    applyFogVisual();
-    setHUD();
-  });
-  fogOpacity.addEventListener("input", () => {
-    state.fog.opacity = Number(fogOpacity.value)/100;
-    applyFogVisual();
-  });
-
-  btnFillFog.addEventListener("click", () => fillFog());
-  btnClearFog.addEventListener("click", () => clearFog());
-
   // ---------- Dice ----------
   function parseDice(expr){
-    // Supports: NdM, dM, +/-, integers
-    // Returns { total, parts: [{raw, rolls:[], value}] }
     const cleaned = expr.replace(/\s+/g,"").toLowerCase();
     if(!cleaned) throw new Error("Expressão vazia.");
 
@@ -1607,7 +1987,7 @@
   function renderRolls(){
     rolls.innerHTML = "";
     if(!state.rolls.length){
-      rolls.innerHTML = `<div class="hint">Sem rolagens ainda. Uma paz rara.</div>`;
+      rolls.innerHTML = `<div class="hint">Sem rolagens ainda. Aproveite a paz.</div>`;
       return;
     }
     for(const r of state.rolls.slice().reverse()){
@@ -1615,9 +1995,11 @@
       row.className = "item";
       const detail = r.parts.map(p => p.rolls.length ? `${p.raw}=[${p.rolls.join(",")}]` : `${p.raw}`).join(" ");
       row.innerHTML = `
-        <div class="meta">
-          <div class="name">${escapeHtml(r.expr)} → <span style="color:var(--ok)">${r.total}</span></div>
-          <div class="sub">${escapeHtml(detail)}</div>
+        <div class="meta" style="gap:0">
+          <div style="min-width:0">
+            <div class="name">${escapeHtml(r.expr)} → <span style="color:var(--accent2)">${escapeHtml(String(r.total))}</span></div>
+            <div class="sub">${escapeHtml(detail)}</div>
+          </div>
         </div>
         <div class="actions">
           <button class="tiny" data-act="copy">Copiar</button>
@@ -1627,33 +2009,18 @@
         const b = e.target.closest("button");
         if(!b) return;
         navigator.clipboard?.writeText(`${r.expr} = ${r.total}`);
+        toast("Copiado", `${r.expr} = ${r.total}`);
       });
       rolls.appendChild(row);
     }
   }
-
-  btnRoll.addEventListener("click", () => {
-    try{
-      const expr = diceExpr.value.trim();
-      const out = parseDice(expr);
-      state.rolls.push({ id: uid(), expr, ...out, ts: Date.now() });
-      renderRolls();
-    } catch(err){
-      state.rolls.push({ id: uid(), expr: diceExpr.value.trim() || "(vazio)", total: "erro", parts: [{raw:String(err.message||err), rolls:[], value:0}], ts: Date.now() });
-      renderRolls();
-    }
-  });
-
-  btnClearRolls.addEventListener("click", () => {
-    state.rolls = [];
-    renderRolls();
-  });
 
   // ---------- Initiative ----------
   function renderInitiative(){
     iniList.innerHTML = "";
     if(!state.initiative.list.length){
       iniList.innerHTML = `<div class="hint">Lista vazia.</div>`;
+      setHUD();
       return;
     }
     state.initiative.list.forEach((it, idx) => {
@@ -1663,9 +2030,11 @@
       row.style.borderColor = isTurn ? "rgba(56,217,150,.55)" : "var(--line)";
       row.style.background = isTurn ? "rgba(56,217,150,.10)" : "rgba(0,0,0,.16)";
       row.innerHTML = `
-        <div class="meta">
-          <div class="name">${escapeHtml(it.name)} ${isTurn ? "· (turno)" : ""}</div>
-          <div class="sub">ini: ${it.val}</div>
+        <div class="meta" style="gap:0">
+          <div style="min-width:0">
+            <div class="name">${escapeHtml(it.name)} ${isTurn ? "· (turno)" : ""}</div>
+            <div class="sub">ini: ${it.val}</div>
+          </div>
         </div>
         <div class="actions">
           <button class="tiny" data-act="up">▲</button>
@@ -1693,94 +2062,28 @@
       });
       iniList.appendChild(row);
     });
-  }
-
-  btnAddIni.addEventListener("click", () => {
-    const name = (iniName.value || "").trim();
-    const val = Number(iniVal.value);
-    if(!name || !Number.isFinite(val)) return;
-    state.initiative.list.push({ id: uid(), name, val });
-    iniName.value = "";
-    iniVal.value = "";
-    renderInitiative();
-  });
-
-  btnSortIni.addEventListener("click", () => {
-    state.initiative.list.sort((a,b) => b.val - a.val);
-    state.initiative.turnIndex = 0;
-    renderInitiative();
-  });
-
-  btnNextTurn.addEventListener("click", () => {
-    if(!state.initiative.list.length) return;
-    state.initiative.turnIndex = (state.initiative.turnIndex + 1) % state.initiative.list.length;
-    renderInitiative();
-  });
-
-  btnClearIni.addEventListener("click", () => {
-    state.initiative.list = [];
-    state.initiative.turnIndex = 0;
-    renderInitiative();
-  });
-
-  // ---------- Notes ----------
-  btnSaveNotes.addEventListener("click", () => {
-    state.notes = notes.value || "";
-  });
-  btnClearNotes.addEventListener("click", () => {
-    state.notes = "";
-    notes.value = "";
-  });
-
-  // ---------- Settings (grid/measure) ----------
-  btnApplyGrid.addEventListener("click", () => {
-    state.grid.size = clamp(Number(gridSize.value || 64), 10, 400);
-    state.grid.show = (gridShow.value === "on");
-    state.grid.snap = (gridSnap.value === "on");
-    state.grid.color = gridColor.value || "rgba(255,255,255,0.12)";
-    drawGrid();
-    setHUD();
-  });
-
-  btnToggleMeasure.addEventListener("click", () => toggleMeasure());
-  function toggleMeasure(){
-    state.measure.enabled = !state.measure.enabled;
-    state.measure.dragging = false;
-    state.measure.a = null;
-    state.measure.b = null;
-    drawOverlay();
     setHUD();
   }
 
-  // ---------- Stage controls ----------
-  btnResetView.addEventListener("click", () => resetView());
-  btnToggleGrid.addEventListener("click", () => {
-    state.grid.show = !state.grid.show;
-    gridShow.value = state.grid.show ? "on" : "off";
-    drawGrid();
-    setHUD();
-  });
-  btnToggleFog.addEventListener("click", () => {
-    state.fog.enabled = !state.fog.enabled;
-    fogEnabled.value = state.fog.enabled ? "on" : "off";
-    applyFogVisual();
-    setHUD();
-  });
-
-  // ---------- Import/Export ----------
+  // ---------- Save/Load ----------
+  function safeToDataURL(canvas){
+    try{ return canvas.toDataURL("image/png"); } catch { return null; }
+  }
   function exportScene(){
-    const data = structuredCloneSafe({
+    const data = JSON.parse(JSON.stringify({
+      version: state.version,
       project: state.project,
       map: state.map,
       grid: state.grid,
-      fog: { enabled: state.fog.enabled, opacity: state.fog.opacity },
+      fog: state.fog,
       fogData: safeToDataURL(fogCanvas),
       tokens: state.tokens,
       tokenLibrary: state.tokenLibrary,
       notes: notes.value ?? state.notes,
       rolls: state.rolls,
-      initiative: state.initiative
-    });
+      initiative: state.initiative,
+      view: state.view
+    }));
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -1788,101 +2091,110 @@
     a.download = `mesa-atelier-scene-${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+    toast("Export feito", "JSON baixado");
   }
 
-  function safeToDataURL(canvas){
-    try{
-      return canvas.toDataURL("image/png");
-    } catch {
-      return null;
-    }
-  }
-
-  function structuredCloneSafe(obj){
-    // avoid functions, DOM nodes; simple JSON-safe clone
-    return JSON.parse(JSON.stringify(obj));
-  }
-
-  btnExport.addEventListener("click", () => exportScene());
-
-  btnImport.addEventListener("click", async () => {
+  async function importSceneFromFile(){
     const f = importFile.files && importFile.files[0];
     if(!f) return;
-
     const txt = await f.text();
     const data = JSON.parse(txt);
-
-    // basic sanity
-    if(!data || typeof data !== "object") return;
 
     // map
     if(data.map){
       setMapSrc(data.map.src || "");
       setMapSize(Number(data.map.w||DEFAULT_MAP.w), Number(data.map.h||DEFAULT_MAP.h));
     } else {
-      resetMap();
+      setMapSrc("");
+      setMapSize(DEFAULT_MAP.w, DEFAULT_MAP.h);
     }
 
     // grid
     if(data.grid){
-      state.grid.size = clamp(Number(data.grid.size||64), 10, 400);
+      state.grid.size = clamp(Number(data.grid.size||64), 10, 500);
       state.grid.show = !!data.grid.show;
       state.grid.snap = !!data.grid.snap;
       state.grid.color = data.grid.color || "rgba(255,255,255,0.12)";
     }
 
     // fog
-    state.fog.enabled = data.fog ? !!data.fog.enabled : true;
-    state.fog.opacity = data.fog ? clamp(Number(data.fog.opacity||0.92), 0, 1) : 0.92;
+    if(data.fog){
+      state.fog.enabled = !!data.fog.enabled;
+      state.fog.opacity = clamp(Number(data.fog.opacity ?? 0.92), 0, 1);
+      state.fog.brush = clamp(Number(data.fog.brush ?? 44), 6, 200);
+    }
 
-    // tokens & library
+    // content
     state.tokens = Array.isArray(data.tokens) ? data.tokens : [];
     state.tokenLibrary = Array.isArray(data.tokenLibrary) ? data.tokenLibrary : [];
-
-    // notes/rolls/ini
     state.notes = data.notes || "";
     state.rolls = Array.isArray(data.rolls) ? data.rolls : [];
-    state.initiative = data.initiative && typeof data.initiative === "object"
-      ? data.initiative
-      : { list: [], turnIndex: 0 };
+    state.initiative = data.initiative && typeof data.initiative === "object" ? data.initiative : { list: [], turnIndex: 0 };
+    state.view = data.view && typeof data.view === "object" ? data.view : state.view;
 
     // UI sync
     mapW.value = state.map.w;
     mapH.value = state.map.h;
 
     gridSize.value = state.grid.size;
-    gridShow.value = state.grid.show ? "on" : "off";
-    gridSnap.value = state.grid.snap ? "on" : "off";
     gridColor.value = state.grid.color;
 
-    fogEnabled.value = state.fog.enabled ? "on" : "off";
     fogOpacity.value = Math.round(state.fog.opacity * 100);
+    fogBrush.value = state.fog.brush;
+
+    tgGrid.classList.toggle("on", state.grid.show);
+    tgSnap.classList.toggle("on", state.grid.snap);
+    tgFog.classList.toggle("on", state.fog.enabled);
 
     notes.value = state.notes;
 
+    ensureCanvasSizes();
     drawGrid();
     applyFogVisual();
     renderLibrary();
     renderAllTokens();
     renderRolls();
     renderInitiative();
-
-    // fog bitmap
     loadFogFromDataURL(data.fogData);
+    applyBoardTransform();
+    fit(false, false);
 
-    // view
-    fitIfNeeded(true);
     importFile.value = "";
+    toast("Cena importada", "Tudo recarregado");
+  }
+
+  // ---------- Tool switching ----------
+  function setTool(tool){
+    if(tool === "fit"){
+      fit(true, true);
+      toast("Enquadrado", "Mapa centralizado");
+      return;
+    }
+    state.tool = tool;
+    toolBtns.forEach(b => b.classList.toggle("active", b.dataset.tool === tool));
+    setHUD();
+  }
+
+  toolBar.addEventListener("click", (e) => {
+    const btn = e.target.closest(".toolBtn");
+    if(!btn) return;
+    setTool(btn.dataset.tool);
   });
 
-  btnSaveLocal.addEventListener("click", () => {
-    // localStorage can fail if huge, so try/catch
+  // ---------- Inputs & bindings ----------
+  btnHelp.addEventListener("click", () => helpModal.classList.add("on"));
+  btnCloseHelp.addEventListener("click", () => helpModal.classList.remove("on"));
+  helpModal.addEventListener("click", (e) => { if(e.target === helpModal) helpModal.classList.remove("on"); });
+
+  btnExportTop.addEventListener("click", exportScene);
+  btnSaveTop.addEventListener("click", () => {
     try{
-      const data = {
+      const data = JSON.parse(JSON.stringify({
+        version: state.version,
         project: state.project,
         map: state.map,
         grid: state.grid,
-        fog: { enabled: state.fog.enabled, opacity: state.fog.opacity, tool: state.fog.tool, brush: state.fog.brush },
+        fog: state.fog,
         fogData: safeToDataURL(fogCanvas),
         tokens: state.tokens,
         tokenLibrary: state.tokenLibrary,
@@ -1890,33 +2202,223 @@
         rolls: state.rolls,
         initiative: state.initiative,
         view: state.view
-      };
+      }));
       localStorage.setItem("mesaAtelier.save", JSON.stringify(data));
-    } catch(err){
+      toast("Salvo localmente", "localStorage: mesaAtelier.save");
+    } catch {
       alert("Falhou ao salvar localmente (provavelmente ficou grande demais). Use Exportar.");
     }
   });
 
+  // Map
+  btnLoadMap.addEventListener("click", () => loadMapFromFile());
+  btnClearMap.addEventListener("click", resetMap);
+  btnApplyMapSize.addEventListener("click", () => {
+    setMapSize(Number(mapW.value || state.map.w), Number(mapH.value || state.map.h));
+    fillFog();
+    toast("Tamanho aplicado", `${state.map.w}×${state.map.h}`);
+  });
+  btnFit.addEventListener("click", () => fit(true, true));
+
+  // Library add
+  btnAddTokenImgs.addEventListener("click", async () => {
+    const files = tokenFile.files ? Array.from(tokenFile.files) : [];
+    if(!files.length) return;
+
+    for(const f of files){
+      const src = await fileToDataURL(f);
+      state.tokenLibrary.push({ id: uid(), name: f.name.replace(/\.[^.]+$/,""), src });
+    }
+    tokenFile.value = "";
+    renderLibrary();
+    toast("Biblioteca atualizada", `${state.tokenLibrary.length} itens`);
+  });
+
+  btnSpawnFromLibrary.addEventListener("click", () => {
+    const it = state.tokenLibrary[0];
+    if(!it) return toast("Biblioteca vazia", "Adicione imagens primeiro");
+    spawnFromLibraryId(it.id);
+  });
+
+  btnSpawnColor.addEventListener("click", () => {
+    const name = (newTokenName.value || "token").trim();
+    const size = Number(newTokenSize.value || 64);
+    const color = (newTokenColor.value || "rgba(106,92,255,.35)").trim();
+    const shape = newTokenShape.value || "circle";
+    const center = getStageCenterBoard();
+    createToken({ name, size, x:center.x, y:center.y, src:"", color, shape });
+  });
+
+  tokenSearch.addEventListener("input", refreshTokenLists);
+
+  // Inspector binds
+  tokName.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.name = tokName.value;
+    renderAllTokens();
+  });
+  tokX.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.x = clamp(Number(tokX.value||t.x), 0, state.map.w);
+    renderToken(t);
+    refreshTokenLists();
+  });
+  tokY.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.y = clamp(Number(tokY.value||t.y), 0, state.map.h);
+    renderToken(t);
+    refreshTokenLists();
+  });
+  tokSize.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.size = clamp(Number(tokSize.value||t.size), 16, 512);
+    renderToken(t);
+    refreshTokenLists();
+  });
+  tokRot.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.rot = Number(tokRot.value||t.rot);
+    renderToken(t);
+    refreshTokenLists();
+  });
+  tokShape.addEventListener("change", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.shape = tokShape.value;
+    renderToken(t);
+    refreshTokenLists();
+  });
+  tokColor.addEventListener("input", () => {
+    const t = tokenById(state.selectedTokenId); if(!t) return;
+    t.color = tokColor.value;
+    renderToken(t);
+    refreshTokenLists();
+    refreshTokenEditor(false);
+  });
+
+  btnCenterOnToken.addEventListener("click", () => {
+    const t = tokenById(state.selectedTokenId);
+    if(!t) return;
+    centerViewOn(t.x, t.y);
+    toast("Centralizado", t.name || "token");
+  });
+
+  btnDeleteToken.addEventListener("click", () => {
+    const id = state.selectedTokenId;
+    if(!id) return;
+    const t = tokenById(id);
+    state.tokens = state.tokens.filter(x => x.id !== id);
+    state.selectedTokenId = null;
+    renderAllTokens();
+    toast("Token deletado", t?.name || "token");
+  });
+
+  // Grid toggles
+  tgGrid.addEventListener("click", () => {
+    state.grid.show = !state.grid.show;
+    drawGrid();
+    setHUD();
+  });
+  tgSnap.addEventListener("click", () => {
+    state.grid.snap = !state.grid.snap;
+    setHUD();
+  });
+  btnApplyGrid.addEventListener("click", () => {
+    state.grid.size = clamp(Number(gridSize.value || 64), 10, 500);
+    state.grid.color = (gridColor.value || "rgba(255,255,255,0.12)").trim();
+    drawGrid();
+    toast("Grid aplicado", `${state.grid.size}px`);
+    setHUD();
+  });
+
+  // Fog
+  tgFog.addEventListener("click", () => {
+    state.fog.enabled = !state.fog.enabled;
+    applyFogVisual();
+    setHUD();
+    toast("Fog", state.fog.enabled ? "ligado" : "desligado");
+  });
+  fogOpacity.addEventListener("input", () => {
+    state.fog.opacity = Number(fogOpacity.value)/100;
+    applyFogVisual();
+  });
+  fogBrush.addEventListener("input", () => {
+    state.fog.brush = Number(fogBrush.value);
+  });
+  btnFillFog.addEventListener("click", () => { fillFog(); toast("Fog", "cobriu tudo"); });
+  btnClearFog.addEventListener("click", () => { clearFog(); toast("Fog", "revelou tudo"); });
+
+  // Dice
+  btnRoll.addEventListener("click", () => {
+    try{
+      const expr = diceExpr.value.trim();
+      const out = parseDice(expr);
+      state.rolls.push({ id: uid(), expr, ...out, ts: Date.now() });
+      renderRolls();
+    } catch(err){
+      state.rolls.push({ id: uid(), expr: diceExpr.value.trim() || "(vazio)", total: "erro", parts: [{raw:String(err.message||err), rolls:[], value:0}], ts: Date.now() });
+      renderRolls();
+    }
+  });
+  btnClearRolls.addEventListener("click", () => { state.rolls = []; renderRolls(); });
+
+  // Initiative
+  btnAddIni.addEventListener("click", () => {
+    const name = (iniName.value || "").trim();
+    const val = Number(iniVal.value);
+    if(!name || !Number.isFinite(val)) return;
+    state.initiative.list.push({ id: uid(), name, val });
+    iniName.value = ""; iniVal.value = "";
+    renderInitiative();
+  });
+  btnSortIni.addEventListener("click", () => {
+    state.initiative.list.sort((a,b) => b.val - a.val);
+    state.initiative.turnIndex = 0;
+    renderInitiative();
+  });
+  btnNextTurn.addEventListener("click", () => {
+    if(!state.initiative.list.length) return;
+    state.initiative.turnIndex = (state.initiative.turnIndex + 1) % state.initiative.list.length;
+    renderInitiative();
+  });
+  btnClearIni.addEventListener("click", () => {
+    state.initiative.list = [];
+    state.initiative.turnIndex = 0;
+    renderInitiative();
+  });
+
+  // Notes
+  btnSaveNotes.addEventListener("click", () => {
+    state.notes = notes.value || "";
+    toast("Notas salvas", "Incluídas no export/local");
+  });
+  btnClearNotes.addEventListener("click", () => {
+    state.notes = "";
+    notes.value = "";
+    toast("Notas limpas", "");
+  });
+
+  // Save/Load
+  btnExport.addEventListener("click", exportScene);
+  btnImport.addEventListener("click", importSceneFromFile);
+
+  btnSaveLocal.addEventListener("click", () => btnSaveTop.click());
   btnLoadLocal.addEventListener("click", () => {
     try{
       const raw = localStorage.getItem("mesaAtelier.save");
-      if(!raw) return;
+      if(!raw) return toast("Nada salvo", "localStorage vazio");
       const data = JSON.parse(raw);
 
-      // reuse import pipeline (simplified)
+      // map
       if(data.map){
         setMapSrc(data.map.src || "");
         setMapSize(Number(data.map.w||DEFAULT_MAP.w), Number(data.map.h||DEFAULT_MAP.h));
       }
-      if(data.grid){
-        state.grid = { ...state.grid, ...data.grid };
-      }
-      if(data.view){
-        state.view = { ...state.view, ...data.view };
-      }
-      if(data.fog){
-        state.fog = { ...state.fog, ...data.fog };
-      }
+
+      // grid/fog/content
+      if(data.grid) state.grid = { ...state.grid, ...data.grid };
+      if(data.fog) state.fog = { ...state.fog, ...data.fog };
+      if(data.view) state.view = { ...state.view, ...data.view };
+
       state.tokens = Array.isArray(data.tokens) ? data.tokens : [];
       state.tokenLibrary = Array.isArray(data.tokenLibrary) ? data.tokenLibrary : [];
       state.notes = data.notes || "";
@@ -1926,15 +2428,9 @@
       // UI sync
       mapW.value = state.map.w; mapH.value = state.map.h;
       gridSize.value = state.grid.size;
-      gridShow.value = state.grid.show ? "on" : "off";
-      gridSnap.value = state.grid.snap ? "on" : "off";
       gridColor.value = state.grid.color;
-
-      fogTool.value = state.fog.tool;
-      fogBrush.value = state.fog.brush;
-      fogEnabled.value = state.fog.enabled ? "on" : "off";
       fogOpacity.value = Math.round(state.fog.opacity * 100);
-
+      fogBrush.value = state.fog.brush;
       notes.value = state.notes;
 
       ensureCanvasSizes();
@@ -1947,44 +2443,42 @@
       loadFogFromDataURL(data.fogData);
 
       applyBoardTransform();
-      setHUD();
+      toast("Carregado localmente", "mesaAtelier.save");
     } catch(err){
       alert("Falhou ao carregar do localStorage. Talvez o save esteja corrompido.");
     }
   });
 
   btnResetAll.addEventListener("click", () => {
-    if(!confirm("Resetar tudo? Isso apaga mapa/tokens/fog/notas da memória atual.")) return;
+    if(!confirm("Resetar tudo? Isso apaga mapa/tokens/fog/notas da sessão atual.")) return;
+
+    state.tool = "select";
     state.view = { panX: 60, panY: 60, scale: 1 };
     state.map = { ...DEFAULT_MAP };
     state.grid = { size: 64, show: true, snap: true, color: "rgba(255,255,255,0.12)" };
-    state.fog = { enabled: true, opacity: 0.92, tool: "reveal", brush: 40 };
+    state.fog = { enabled: true, opacity: 0.92, brush: 44 };
     state.tokens = [];
     state.tokenLibrary = [];
     state.selectedTokenId = null;
     state.notes = "";
     state.rolls = [];
     state.initiative = { list: [], turnIndex: 0 };
-    state.measure = { enabled: false, dragging: false, a: null, b: null };
+    state.measure = { dragging:false, a:null, b:null };
+    state.input = { spaceDown:false, isPanning:false, panStart:null, tokenDrag:null, fogPainting:false, fogLast:null };
 
-    // UI
     mapW.value = state.map.w; mapH.value = state.map.h;
     gridSize.value = state.grid.size;
-    gridShow.value = "on";
-    gridSnap.value = "on";
     gridColor.value = state.grid.color;
-
-    fogTool.value = state.fog.tool;
-    fogBrush.value = state.fog.brush;
-    fogEnabled.value = "on";
     fogOpacity.value = 92;
-
+    fogBrush.value = 44;
     notes.value = "";
     diceExpr.value = "";
+    tokenSearch.value = "";
+
+    toolBtns.forEach(b => b.classList.toggle("active", b.dataset.tool === "select"));
 
     setMapSrc("");
-    ensureCanvasSizes();
-    drawGrid();
+    setMapSize(DEFAULT_MAP.w, DEFAULT_MAP.h);
     fillFog();
     applyFogVisual();
     renderLibrary();
@@ -1992,111 +2486,116 @@
     renderRolls();
     renderInitiative();
     resetView();
+    setHUD();
+
+    toast("Reset feito", "Estado limpo");
   });
 
-  // ---------- Stage interactions: pan/zoom, measure, deselect ----------
-  let isPanning = false;
-  let panStart = null;
-  let spaceDown = false;
-
+  // ---------- Stage interactions: pan/zoom/measure/fog/select ----------
   stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
-  stage.addEventListener("pointerdown", (e) => {
-    // ignore UI elements
-    const inSide = e.target.closest(".side");
-    if(inSide) return;
+  // pointer move cursor preview
+  stage.addEventListener("pointermove", (e) => {
+    // token drag
+    if(state.input.tokenDrag) moveTokenDrag(e);
 
+    // measure drag
+    if(state.tool === "measure" && state.measure.dragging){
+      const p = screenToBoard(e.clientX, e.clientY);
+      state.measure.b = e.shiftKey ? { x: snap(p.x, state.grid.size), y: snap(p.y, state.grid.size) } : p;
+      drawOverlay();
+      return;
+    }
+
+    // fog paint
+    if(state.input.fogPainting){
+      const p = screenToBoard(e.clientX, e.clientY);
+      if(state.input.fogLast){
+        const mode = state.tool === "fog_reveal" ? "reveal" : "cover";
+        paintFogLine(state.input.fogLast, p, mode);
+      }
+      state.input.fogLast = p;
+      return;
+    }
+
+    // panning
+    if(state.input.isPanning && state.input.panStart && state.input.panStart.pointerId === e.pointerId){
+      const dx = e.clientX - state.input.panStart.x;
+      const dy = e.clientY - state.input.panStart.y;
+      state.view.panX = state.input.panStart.panX + dx;
+      state.view.panY = state.input.panStart.panY + dy;
+      applyBoardTransform();
+      return;
+    }
+
+    // cursor preview for fog tool
+    const r = stageRect();
+    drawOverlay({ x: e.clientX - r.left, y: e.clientY - r.top });
+  });
+
+  stage.addEventListener("pointerdown", (e) => {
     const isLeft = e.button === 0;
     const isRight = e.button === 2;
     const isMiddle = e.button === 1;
 
-    // measuring takes precedence
-    if(state.measure.enabled && isLeft){
-      const p = screenToBoard(e.clientX, e.clientY);
-      state.measure.dragging = true;
-      state.measure.a = p;
-      state.measure.b = p;
-      drawOverlay();
-      setHUD();
-      return;
-    }
-
-    // fog painting
-    if(state.fog.enabled && e.target === fogCanvas && isLeft){
-      isFogPainting = true;
-      const p = screenToBoard(e.clientX, e.clientY);
-      fogLast = p;
-      paintFogLine(p, p);
-      setHUD();
-      return;
-    }
-
-    // pan: right, middle, or space+left
-    if(isRight || isMiddle || (spaceDown && isLeft)){
-      isPanning = true;
-      panStart = { x: e.clientX, y: e.clientY, panX: state.view.panX, panY: state.view.panY, pointerId: e.pointerId };
-      stage.setPointerCapture(e.pointerId);
-      return;
-    }
-
-    // click empty -> deselect
-    if(isLeft && !e.target.closest(".token")){
+    // deselect if click empty in select mode
+    if(isLeft && state.tool === "select" && !e.target.closest(".token")){
       deselectToken();
     }
-  });
 
-  stage.addEventListener("pointermove", (e) => {
-    if(tokenDrag) moveTokenDrag(e);
-
-    if(state.measure.enabled && state.measure.dragging){
+    // measure
+    if(isLeft && state.tool === "measure"){
       const p = screenToBoard(e.clientX, e.clientY);
-      state.measure.b = p;
+      state.measure.dragging = true;
+      state.measure.a = e.shiftKey ? { x: snap(p.x, state.grid.size), y: snap(p.y, state.grid.size) } : p;
+      state.measure.b = state.measure.a;
       drawOverlay();
       return;
     }
 
-    if(isFogPainting){
+    // fog paint
+    if(isLeft && (state.tool === "fog_reveal" || state.tool === "fog_cover")){
+      if(!state.fog.enabled) return toast("Fog está desligado", "Ligue em Ferramentas ou tecla F");
+      state.input.fogPainting = true;
       const p = screenToBoard(e.clientX, e.clientY);
-      if(fogLast) paintFogLine(fogLast, p);
-      fogLast = p;
+      state.input.fogLast = p;
+      const mode = state.tool === "fog_reveal" ? "reveal" : "cover";
+      paintFogLine(p, p, mode);
       return;
     }
 
-    if(isPanning && panStart && panStart.pointerId === e.pointerId){
-      const dx = e.clientX - panStart.x;
-      const dy = e.clientY - panStart.y;
-      state.view.panX = panStart.panX + dx;
-      state.view.panY = panStart.panY + dy;
-      applyBoardTransform();
+    // pan (tool pan OR space OR mouse2/3)
+    const wantsPan = (state.tool === "pan") || state.input.spaceDown || isRight || isMiddle;
+    if(wantsPan){
+      state.input.isPanning = true;
+      state.input.panStart = { x: e.clientX, y: e.clientY, panX: state.view.panX, panY: state.view.panY, pointerId: e.pointerId };
+      stage.setPointerCapture(e.pointerId);
       return;
     }
   });
 
   stage.addEventListener("pointerup", (e) => {
-    if(tokenDrag) endTokenDrag();
+    if(state.input.tokenDrag) endTokenDrag();
 
-    if(state.measure.enabled && state.measure.dragging){
+    if(state.tool === "measure" && state.measure.dragging){
       state.measure.dragging = false;
       drawOverlay();
     }
 
-    if(isFogPainting){
-      isFogPainting = false;
-      fogLast = null;
-      setHUD();
+    if(state.input.fogPainting){
+      state.input.fogPainting = false;
+      state.input.fogLast = null;
+      toast("Fog aplicado", state.tool === "fog_reveal" ? "revelou área" : "cobriu área");
     }
 
-    if(isPanning && panStart && panStart.pointerId === e.pointerId){
-      isPanning = false;
-      panStart = null;
-      setHUD();
+    if(state.input.isPanning && state.input.panStart && state.input.panStart.pointerId === e.pointerId){
+      state.input.isPanning = false;
+      state.input.panStart = null;
     }
   });
 
   stage.addEventListener("wheel", (e) => {
-    // prevent page scroll
     e.preventDefault();
-
     const delta = -Math.sign(e.deltaY) * 0.12;
     const old = state.view.scale;
     const next = clamp(old * (1 + delta), 0.15, 4);
@@ -2105,7 +2604,6 @@
     const mx = e.clientX - r.left;
     const my = e.clientY - r.top;
 
-    // zoom about mouse
     const bx = (mx - state.view.panX) / old;
     const by = (my - state.view.panY) / old;
 
@@ -2118,60 +2616,57 @@
 
   // ---------- Keyboard shortcuts ----------
   window.addEventListener("keydown", (e) => {
-    if(e.code === "Space") spaceDown = true;
+    if(e.code === "Space") state.input.spaceDown = true;
 
-    // ignore typing fields
     const tag = document.activeElement?.tagName?.toLowerCase();
     const typing = tag === "input" || tag === "textarea" || tag === "select";
     if(typing) return;
 
+    const k = e.key.toLowerCase();
+
     if(e.key === "Delete"){
       if(state.selectedTokenId){
-        state.tokens = state.tokens.filter(t => t.id !== state.selectedTokenId);
+        const t = tokenById(state.selectedTokenId);
+        state.tokens = state.tokens.filter(x => x.id !== state.selectedTokenId);
         state.selectedTokenId = null;
         renderAllTokens();
-        refreshTokenEditor();
+        toast("Token deletado", t?.name || "token");
       }
     }
-    if(e.key.toLowerCase() === "m"){
-      toggleMeasure();
-    }
-    if(e.key.toLowerCase() === "g"){
+
+    if(k === "m") setTool("measure");
+    if(k === "v") setTool("select");
+    if(k === "h") setTool("pan");
+    if(k === "e") setTool("fog_reveal");
+    if(k === "c") setTool("fog_cover");
+    if(k === "z") setTool("fit");
+
+    if(k === "g"){
       state.grid.show = !state.grid.show;
-      gridShow.value = state.grid.show ? "on" : "off";
       drawGrid();
       setHUD();
+      toast("Grid", state.grid.show ? "ligado" : "desligado");
     }
-    if(e.key.toLowerCase() === "f"){
+
+    if(k === "f"){
       state.fog.enabled = !state.fog.enabled;
-      fogEnabled.value = state.fog.enabled ? "on" : "off";
       applyFogVisual();
       setHUD();
+      toast("Fog", state.fog.enabled ? "ligado" : "desligado");
     }
   });
 
   window.addEventListener("keyup", (e) => {
-    if(e.code === "Space") spaceDown = false;
+    if(e.code === "Space") state.input.spaceDown = false;
   });
 
-  // ---------- Token drag global pointer handlers ----------
-  window.addEventListener("pointermove", (e) => {
-    if(tokenDrag) moveTokenDrag(e);
-  });
-  window.addEventListener("pointerup", (e) => {
-    if(tokenDrag) endTokenDrag();
-  });
-
-  // ---------- Utils ----------
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, (m) => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
+  // Token drag global
+  window.addEventListener("pointermove", (e) => { if(state.input.tokenDrag) moveTokenDrag(e); });
+  window.addEventListener("pointerup",   (e) => { if(state.input.tokenDrag) endTokenDrag(); });
 
   // ---------- Init ----------
   function init(){
-    // map defaults
+    // defaults UI
     setMapSrc("");
     setMapSize(DEFAULT_MAP.w, DEFAULT_MAP.h);
 
@@ -2179,20 +2674,16 @@
     mapH.value = state.map.h;
 
     gridSize.value = state.grid.size;
-    gridShow.value = state.grid.show ? "on" : "off";
-    gridSnap.value = state.grid.snap ? "on" : "off";
     gridColor.value = state.grid.color;
 
-    fogTool.value = state.fog.tool;
+    fogOpacity.value = Math.round(state.fog.opacity * 100);
     fogBrush.value = state.fog.brush;
-    fogEnabled.value = state.fog.enabled ? "on" : "off";
-    fogOpacity.value = Math.round(state.fog.opacity*100);
 
     notes.value = state.notes;
 
-    drawGrid();
     fillFog();
     applyFogVisual();
+    drawGrid();
 
     renderLibrary();
     renderAllTokens();
@@ -2200,8 +2691,12 @@
     renderInitiative();
 
     applyBoardTransform();
-    fitIfNeeded(true);
+    fit(true, true);
     setHUD();
+
+    // Ajudinha inicial (uma vez)
+    setTimeout(() => toast("Dica", "Use a toolbar no rodapé para trocar ferramentas"), 450);
+    setTimeout(() => toast("Atalhos", "Espaço+arrastar = pan · M = régua · F = fog"), 950);
   }
 
   init();
