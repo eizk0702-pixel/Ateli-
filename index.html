@@ -250,6 +250,35 @@
       background:rgba(255,255,255,.03);color:#ddd;
     }
     .pill.active{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+
+    /* PAINEL DE JOGADORES (Host) */
+    .players-panel{
+      position:fixed;top:170px;right:20px;z-index:1300;width:380px;max-height:560px;
+      background:var(--panel-bg);border:1px solid rgba(197,160,89,.2);
+      border-radius:16px;padding:12px;backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden;display:none;
+    }
+    .players-panel.show{display:block;}
+    .players-list{max-height:460px;overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:8px;}
+    .player-row{
+      display:flex;flex-direction:column;gap:8px;
+      border:1px solid rgba(197,160,89,.14);background:rgba(255,255,255,.03);
+      border-radius:14px;padding:10px;
+    }
+    .player-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .player-id{font-size:11px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px;}
+    .player-meta{display:flex;gap:10px;align-items:center;font-size:10px;opacity:.75;flex-wrap:wrap;}
+    .mini-badge{
+      border:1px solid rgba(197,160,89,.25);
+      border-radius:999px;padding:3px 8px;background:rgba(255,255,255,.03);
+    }
+    .player-actions{display:flex;gap:8px;}
+    .player-actions button{
+      flex:1;padding:6px 8px;border-radius:10px;border:1px solid rgba(197,160,89,.25);
+      background:rgba(255,255,255,.03);color:#ddd;font-size:10px;cursor:pointer;
+    }
+    .player-actions button:hover{color:var(--gold);border-color:rgba(197,160,89,.55);background:rgba(255,255,255,.05);}
+    .player-actions .kick:hover{color:#ff6b6b;border-color:rgba(255,107,107,.55);background:rgba(255,107,107,.08);}
   </style>
 </head>
 
@@ -268,6 +297,7 @@
       <button class="btn-luxury" id="btn-save-scene" onclick="openScenePanel()">💾 Cena</button>
       <button class="btn-luxury" id="btn-library" onclick="toggleLibrary()">📦 Biblioteca</button>
       <button class="btn-luxury" id="btn-layers" onclick="toggleLayersPanel()">🧱 Camadas</button>
+      <button class="btn-luxury" id="btn-players" onclick="togglePlayersPanel()">👥 Jogadores</button>
       <button class="btn-luxury" onclick="toggleNetworkPanel()">🌐 Rede</button>
     </div>
 
@@ -342,6 +372,22 @@
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; opacity:.8;">
         <span id="library-count">0 itens</span>
         <button class="btn-luxury py-0 px-2 text-[10px]" onclick="clearLibrary()">Limpar Biblioteca</button>
+      </div>
+    </div>
+
+    <!-- Jogadores (Host) -->
+    <div class="players-panel" id="players-panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <div style="color: var(--gold); font-weight:700; font-family:'Cinzel',serif;">Jogadores Conectados</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-luxury py-0 px-2 text-[10px]" onclick="pingAll()">Ping</button>
+          <button class="btn-luxury py-0 px-2 text-[10px]" onclick="resyncAll()">Re-sync</button>
+        </div>
+      </div>
+      <div class="players-list" id="players-list"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; opacity:.8;">
+        <span id="players-count">0 online</span>
+        <button class="btn-luxury py-0 px-2 text-[10px]" onclick="closePlayersPanel()">Fechar</button>
       </div>
     </div>
 
@@ -431,10 +477,11 @@
 
   <script>
     /********************************************************************
-     * ✅ ONLINE REFEITO/OTIMIZADO (sem reescrever teu app inteiro):
-     * - Chunking de mensagens grandes (SYNC/ACT com base64) -> evita “player não vê elementos”
-     * - HELLO->SYNC redundante no connect
-     * - Compressão automática de import local (WebP) -> reduz payload na rede
+     * ✅ MULTIPLAYER ARRUMADO DE VERDADE:
+     * - Fila de envio + backpressure (bufferedAmount) -> evita chunks perdidos e SYNC quebrado
+     * - Chunk menor e robusto
+     * - RESYNC automático no player se SYNC não chega / chunks expiram
+     * - Painel do Host: lista conectados + ping + re-sync + kick
      ********************************************************************/
 
     // ===== UTIL =====
@@ -477,6 +524,7 @@
     const btnSaveScene = document.getElementById('btn-save-scene');
     const btnLibrary = document.getElementById('btn-library');
     const btnLayers = document.getElementById('btn-layers');
+    const btnPlayers = document.getElementById('btn-players');
 
     // Biblioteca
     const libraryPanel = document.getElementById('library-panel');
@@ -489,6 +537,11 @@
     // Camadas
     const layersPanel = document.getElementById('layers-panel');
     const layersList = document.getElementById('layers-list');
+
+    // Players panel
+    const playersPanel = document.getElementById('players-panel');
+    const playersListEl = document.getElementById('players-list');
+    const playersCountEl = document.getElementById('players-count');
 
     // ===== CAMERA =====
     let scale = 1;
@@ -510,6 +563,12 @@
     let myId = null;
     let isHost = false;
 
+    let hasSynced = false;
+    let resyncTimer = null;
+    let lastResyncAt = 0;
+
+    const clients = new Map(); // host: peerId -> {conn, joinedAt, lastSeen, rtt, synced}
+
     const PEER_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -518,28 +577,80 @@
       ]
     };
 
-    // ======= ✅ CHUNKING (o coração da correção) =======
-    const NET_CHUNK_SIZE = 12000; // ~12KB por pedaço (seguro pro DataChannel)
+    // ======= ✅ TRANSPORTE COM BACKPRESSURE + CHUNKING =======
+    const NET_CHUNK_SIZE = 8000;      // mais seguro que 12k
+    const NET_MAX_BUFFER = 900000;    // ~0.9MB de bufferedAmount antes de pausar
+    const NET_TICK_MS = 0;            // processa fila rápido, mas respeita buffer
+
     const chunkInbox = new Map(); // msgId -> { total, parts:[], ts }
-    const CHUNK_TTL_MS = 15000;
+    const CHUNK_TTL_MS = 20000;
 
     function nowMs(){ return performance.now(); }
+    function safeJsonStringify(obj){ try { return JSON.stringify(obj); } catch { return null; } }
+    function safeJsonParse(str){ try { return JSON.parse(str); } catch { return null; } }
+
+    function getDataChannel(conn){
+      return conn? (conn._dc || conn.dataChannel || conn._dataChannel || null) : null;
+    }
+
+    function enqueueSend(conn, payload){
+      if (!conn?.open) return;
+      if (!conn.__sendQueue) conn.__sendQueue = [];
+      conn.__sendQueue.push(payload);
+      if (!conn.__sending) processSendQueue(conn);
+    }
+
+    function processSendQueue(conn){
+      if (!conn?.open){ conn.__sending = false; return; }
+      conn.__sending = true;
+
+      const dc = getDataChannel(conn);
+      const buffered = dc?.bufferedAmount || 0;
+
+      if (buffered > NET_MAX_BUFFER){
+        setTimeout(()=>processSendQueue(conn), 60);
+        return;
+      }
+
+      const item = conn.__sendQueue?.shift();
+      if (!item){
+        conn.__sending = false;
+        return;
+      }
+
+      try{
+        conn.send(item);
+      }catch(e){
+        console.warn("send fail", e);
+        conn.__sendQueue = [];
+        conn.__sending = false;
+        return;
+      }
+
+      setTimeout(()=>processSendQueue(conn), NET_TICK_MS);
+    }
 
     function gcChunks(){
       const t = nowMs();
+      let expiredAny = false;
       for (const [k,v] of chunkInbox.entries()){
-        if ((t - (v.ts||0)) > CHUNK_TTL_MS) chunkInbox.delete(k);
+        if ((t - (v.ts||0)) > CHUNK_TTL_MS){
+          chunkInbox.delete(k);
+          expiredAny = true;
+        }
+      }
+      if (expiredAny && !isHost && hostConnection?.open){
+        requestResync("chunk-timeout");
       }
     }
 
-    function safeJsonStringify(obj){
-      try { return JSON.stringify(obj); }
-      catch { return null; }
-    }
-
-    function safeJsonParse(str){
-      try { return JSON.parse(str); }
-      catch { return null; }
+    function requestResync(reason=""){
+      const now = Date.now();
+      if (now - lastResyncAt < 1500) return; // debouce
+      lastResyncAt = now;
+      if (hostConnection?.open){
+        enqueueSend(hostConnection, {kind:"RESYNC", sender:myId, reason});
+      }
     }
 
     function sendNet(conn, obj){
@@ -547,20 +658,19 @@
       const json = safeJsonStringify(obj);
       if (!json) return;
 
-      // pequeno? manda direto.
+      // pequeno? manda direto (em fila)
       if (json.length <= NET_CHUNK_SIZE){
-        try { conn.send(obj); } catch(e){ console.warn("send fail", e); }
+        enqueueSend(conn, obj);
         return;
       }
 
-      // grande? chunk.
+      // grande? chunk em fila
       const msgId = generateUUID();
       const total = Math.ceil(json.length / NET_CHUNK_SIZE);
 
       for (let i=0;i<total;i++){
         const part = json.slice(i*NET_CHUNK_SIZE, (i+1)*NET_CHUNK_SIZE);
-        const packet = { kind:"CHUNK", msgId, index:i, total, part };
-        try { conn.send(packet); } catch(e){ console.warn("chunk send fail", e); break; }
+        enqueueSend(conn, { kind:"CHUNK", msgId, index:i, total, part });
       }
     }
 
@@ -572,7 +682,12 @@
     function onNetData(data, connPeerId=null){
       gcChunks();
 
-      // Alguns ambientes entregam string, então tenta.
+      // Host: last seen
+      if (isHost && connPeerId){
+        const c = clients.get(connPeerId);
+        if (c) c.lastSeen = Date.now();
+      }
+
       if (typeof data === "string"){
         const parsed = safeJsonParse(data);
         if (parsed) data = parsed;
@@ -594,12 +709,12 @@
         if (entry.total !== total) { chunkInbox.delete(msgId); return; }
         entry.parts[index] = part;
 
-        // completo?
         if (entry.parts.every(p => typeof p === "string")){
           const full = entry.parts.join("");
           chunkInbox.delete(msgId);
           const parsed = safeJsonParse(full);
           if (parsed) handleNetworkData(parsed, connPeerId);
+          else if (!isHost && hostConnection?.open) requestResync("chunk-parse-fail");
         }
         return;
       }
@@ -702,6 +817,15 @@
     function toggleGrid(){ gridLayer.style.display = (gridLayer.style.display === 'none') ? 'block' : 'none'; }
     function toggleNetworkPanel(){ networkPanel.classList.toggle('show'); }
 
+    function closePlayersPanel(){ playersPanel.classList.remove('show'); }
+    function togglePlayersPanel(){
+      if (!isHost) return alert("Apenas o Host vê jogadores.");
+      // evita overlap visual com biblioteca (opcional)
+      libraryPanel.classList.remove('show');
+      playersPanel.classList.toggle('show');
+      renderPlayersPanel();
+    }
+
     function setRoleUI(){
       roleText.textContent = isHost ? "HOST (Mestre)" : "PLAYER";
 
@@ -718,9 +842,140 @@
       btnSaveScene.style.display = isHost ? "" : "none";
       btnLibrary.style.display = isHost ? "" : "none";
       btnLayers.style.display = isHost ? "" : "none";
+      btnPlayers.style.display = isHost ? "" : "none";
       scenePanel.style.display = isHost ? "" : "none";
       layersPanel.style.display = isHost ? "" : "none";
       libraryPanel.style.display = isHost ? "" : "none";
+      playersPanel.style.display = "none";
+    }
+
+    // ===== Painel de Jogadores (Host) =====
+    function prettySince(ms){
+      const s = Math.max(0, Math.round(ms/1000));
+      if (s < 60) return `${s}s`;
+      const m = Math.round(s/60);
+      return `${m}m`;
+    }
+
+    function renderPlayersPanel(){
+      if (!isHost) return;
+      const arr = Array.from(clients.values()).sort((a,b)=> (b.joinedAt||0)-(a.joinedAt||0));
+
+      playersListEl.innerHTML = "";
+      arr.forEach(c=>{
+        const row = document.createElement("div");
+        row.className = "player-row";
+
+        const top = document.createElement("div");
+        top.className = "player-top";
+
+        const left = document.createElement("div");
+        left.className = "player-id";
+        left.textContent = c.id;
+
+        const dot = document.createElement("div");
+        dot.className = "status-dot " + (c.conn?.open ? "online" : "");
+        dot.title = c.conn?.open ? "Online" : "Offline";
+
+        top.appendChild(left);
+        top.appendChild(dot);
+
+        const meta = document.createElement("div");
+        meta.className = "player-meta";
+        const rtt = (c.rtt==null) ? "—" : `${Math.round(c.rtt)}ms`;
+        const last = c.lastSeen ? prettySince(Date.now()-c.lastSeen) : "—";
+        const synced = c.synced ? "SIM" : "NÃO";
+
+        meta.innerHTML = `
+          <span class="mini-badge">Ping: ${rtt}</span>
+          <span class="mini-badge">Last: ${last}</span>
+          <span class="mini-badge">Synced: ${synced}</span>
+        `;
+
+        const actions = document.createElement("div");
+        actions.className = "player-actions";
+
+        const btnRes = document.createElement("button");
+        btnRes.textContent = "Re-sync";
+        btnRes.onclick = ()=>{ if (c.conn?.open) sendSYNC(c.conn); };
+
+        const btnPing = document.createElement("button");
+        btnPing.textContent = "Ping";
+        btnPing.onclick = ()=>{ if (c.conn?.open) pingClient(c.id); };
+
+        const btnKick = document.createElement("button");
+        btnKick.textContent = "Kick";
+        btnKick.className = "kick";
+        btnKick.onclick = ()=>kickClient(c.id);
+
+        actions.appendChild(btnPing);
+        actions.appendChild(btnRes);
+        actions.appendChild(btnKick);
+
+        row.appendChild(top);
+        row.appendChild(meta);
+        row.appendChild(actions);
+        playersListEl.appendChild(row);
+      });
+
+      playersCountEl.textContent = `${arr.filter(x=>x.conn?.open).length} online`;
+    }
+
+    function registerClient(conn){
+      clients.set(conn.peer, {
+        id: conn.peer,
+        conn,
+        joinedAt: Date.now(),
+        lastSeen: Date.now(),
+        rtt: null,
+        synced: false
+      });
+      renderPlayersPanel();
+      showNotification(`Player conectou: ${conn.peer}`);
+    }
+
+    function unregisterClient(peerId){
+      clients.delete(peerId);
+      renderPlayersPanel();
+    }
+
+    function kickClient(peerId){
+      if (!isHost) return;
+      const c = clients.get(peerId);
+      if (!c) return;
+      try{ c.conn?.close(); }catch{}
+      unregisterClient(peerId);
+      showNotification(`Kick: ${peerId}`);
+    }
+
+    function pingClient(peerId){
+      if (!isHost) return;
+      const c = clients.get(peerId);
+      if (!c?.conn?.open) return;
+      const t = Date.now();
+      c.__pingSentAt = t;
+      sendNet(c.conn, {kind:"PING", sender:myId, t});
+      renderPlayersPanel();
+    }
+
+    function pingAll(){
+      if (!isHost) return;
+      clients.forEach((c)=>{ if (c.conn?.open) pingClient(c.id); });
+    }
+
+    function resyncAll(){
+      if (!isHost) return;
+      clients.forEach((c)=>{ if (c.conn?.open) sendSYNC(c.conn); });
+      showNotification("Re-sync enviado!");
+    }
+
+    let hostPingInterval = null;
+    function startHostPinger(){
+      if (!isHost) return;
+      if (hostPingInterval) clearInterval(hostPingInterval);
+      hostPingInterval = setInterval(()=>{
+        clients.forEach((c)=>{ if (c.conn?.open) pingClient(c.id); });
+      }, 8000);
     }
 
     // ===== Convite =====
@@ -907,6 +1162,9 @@
 
         setMapOffset(state.map.x || 0, state.map.y || 0);
       };
+      img.onerror = () => {
+        showNotification("Falha ao carregar mapa (URL sem acesso?)");
+      };
       img.src = src;
 
       if (emit){
@@ -1028,6 +1286,7 @@
       if (contentType === "image"){
         content = document.createElement('img');
         content.src = src;
+        content.onerror = ()=>showNotification("Falha ao carregar token (URL sem acesso?)");
       } else {
         content = document.createElement('iframe');
         content.src = src;
@@ -1404,7 +1663,7 @@
       setTimeout(()=>entry.classList.remove('opacity-0','translate-x-4'),10);
     }
 
-    // ===== IMPORT + ✅ compress local =====
+    // ===== IMPORT + compress local =====
     function isImageUrl(url){
       return (url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i)!=null) || url.startsWith('data:image');
     }
@@ -1441,9 +1700,8 @@
     }
 
     async function maybeCompressLocalDataUrl(dataUrl){
-      // heurística: se for grande, comprime
       const bytes = byteLengthOfString(dataUrl);
-      if (bytes < 450000) return dataUrl; // < ~450KB deixa
+      if (bytes < 450000) return dataUrl;
       const maxDim = parseInt(document.getElementById('max-dim')?.value || "2048", 10);
       const quality = parseFloat(document.getElementById('quality')?.value || "0.78");
       const webp = await compressDataURLToWebP(dataUrl, maxDim, quality);
@@ -1487,8 +1745,6 @@
       const reader=new FileReader();
       reader.onload=async (e)=>{
         let dataUrl=e.target.result;
-
-        // ✅ compress local antes de mandar pra rede
         dataUrl = await maybeCompressLocalDataUrl(dataUrl);
 
         if (type==="map"){
@@ -1512,6 +1768,8 @@
     // ===== BIBLIOTECA =====
     function toggleLibrary(){
       if (!isHost) return alert("Apenas o Host usa Biblioteca/Perfil.");
+      // evita overlap visual com painel de jogadores (opcional)
+      playersPanel.classList.remove('show');
       libraryPanel.classList.toggle('show');
       renderLibrary();
     }
@@ -1945,20 +2203,67 @@
 
       if (data.kind==="HELLO"){
         if (!isHost) return;
-        // client pediu sync (redundante, mas é isso que deixa firme)
         const conn = connections.find(c=>c.peer===data.sender) || null;
         if (conn) sendSYNC(conn);
         return;
       }
 
-      if (data.kind==="SYNC"){
-        applyFullSync(data.state, data.layerState);
+      if (data.kind==="RESYNC"){
+        if (!isHost) return;
+        const conn = connections.find(c=>c.peer===data.sender) || null;
+        if (conn) sendSYNC(conn);
         return;
       }
+
+      if (data.kind==="PING"){
+        // host -> player
+        if (isHost) return;
+        if (hostConnection?.open){
+          sendNet(hostConnection, {kind:"PONG", sender:myId, t:data.t});
+        }
+        return;
+      }
+
+      if (data.kind==="PONG"){
+        // player -> host
+        if (!isHost) return;
+        const peerId = data.sender || connPeerId;
+        const c = clients.get(peerId);
+        if (c && typeof data.t === "number"){
+          c.rtt = Date.now() - data.t;
+          c.lastSeen = Date.now();
+          renderPlayersPanel();
+        }
+        return;
+      }
+
+      if (data.kind==="SYNC_OK"){
+        if (!isHost) return;
+        const peerId = data.sender || connPeerId;
+        const c = clients.get(peerId);
+        if (c){
+          c.synced = true;
+          c.lastSeen = Date.now();
+          renderPlayersPanel();
+        }
+        return;
+      }
+
+      if (data.kind==="SYNC"){
+        applyFullSync(data.state, data.layerState);
+        hasSynced = true;
+        if (!isHost && hostConnection?.open){
+          sendNet(hostConnection, {kind:"SYNC_OK", sender:myId});
+        }
+        if (resyncTimer){ clearInterval(resyncTimer); resyncTimer = null; }
+        return;
+      }
+
       if (data.kind==="ACT"){
         applyAction(data.action,true);
         return;
       }
+
       if (data.kind==="REQ"){
         if (!isHost) return;
         const sender=data.sender || connPeerId || "unknown";
@@ -2177,19 +2482,27 @@
           tinyRoom.textContent=id;
           statusDot.classList.add('online');
           toggleNetworkPanel();
+          startHostPinger();
 
           peer.on('connection',(conn)=>{
             connections.push(conn);
             setupConnection(conn);
+            registerClient(conn);
 
             conn.on('open',()=>{
               // SYNC imediato + redundância
               sendSYNC(conn);
-              setTimeout(()=>sendSYNC(conn), 300);
+              setTimeout(()=>sendSYNC(conn), 350);
             });
 
             conn.on('close',()=>{
               connections=connections.filter(c=>c!==conn);
+              unregisterClient(conn.peer);
+            });
+
+            conn.on('error',()=>{
+              connections=connections.filter(c=>c!==conn);
+              unregisterClient(conn.peer);
             });
           });
         }
@@ -2212,9 +2525,20 @@
         tinyStatus.textContent="Conectado";
         statusDot.classList.add('online');
 
-        // ✅ HELLO pede SYNC (se o primeiro SYNC do host falhar por qualquer motivo)
+        // HELLO pede SYNC
         sendNet(hostConnection, {kind:"HELLO", sender:myId});
-        setTimeout(()=>sendNet(hostConnection, {kind:"HELLO", sender:myId}), 400);
+        setTimeout(()=>sendNet(hostConnection, {kind:"HELLO", sender:myId}), 450);
+
+        // Se não sincronizar, insiste com RESYNC por um tempo
+        hasSynced = false;
+        if (resyncTimer) clearInterval(resyncTimer);
+        let tries = 0;
+        resyncTimer = setInterval(()=>{
+          if (hasSynced || !hostConnection?.open){ clearInterval(resyncTimer); resyncTimer=null; return; }
+          tries++;
+          requestResync("no-sync");
+          if (tries >= 8){ clearInterval(resyncTimer); resyncTimer=null; }
+        }, 1400);
       });
 
       hostConnection.on('close',()=>{
@@ -2222,6 +2546,12 @@
         tinyStatus.textContent="Desconectado";
         statusDot.classList.remove('online');
         alert("O Host desconectou.");
+      });
+
+      hostConnection.on('error',()=>{
+        statusText.innerText="Erro";
+        tinyStatus.textContent="Erro";
+        statusDot.classList.remove('online');
       });
     }
 
